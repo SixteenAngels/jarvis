@@ -94,3 +94,6 @@
 {"source": "/tmp/pytest-of-ubuntu/pytest-21/test_citation_snippet0/s.txt"}
 {"source": "/tmp/pytest-of-ubuntu/pytest-21/test_citations_dedup_and_reran0/b.txt"}
 {"source": "/tmp/pytest-of-ubuntu/pytest-21/test_citations_dedup_and_reran0/a.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-21/test_research_agent_returns_ci0/note.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-21/test_research_agent_reads_vect0/x.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-21/test_research_agent_uses_persi0/note.txt"}

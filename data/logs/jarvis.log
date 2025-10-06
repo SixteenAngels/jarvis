@@ -1,0 +1,11 @@
+2025-10-06 20:45:28,800 INFO jarvis: handle: please rm -rf /
+2025-10-06 20:45:28,801 WARNING jarvis: blocked by policy: Blocked by policy: contains 'rm -rf'
+2025-10-06 20:45:31,245 INFO jarvis: handle: ingest /tmp/pytest-of-ubuntu/pytest-21/test_kernel_basic_flow0/doc.txt
+2025-10-06 20:45:31,564 INFO jarvis: step: [local-llm] Decompose the goal into 2-4 concise steps: ingest /tmp/pytest-of-ubuntu/pytest-21/test_kernel_basic_flow0/doc -> ok
+2025-10-06 20:45:31,667 INFO jarvis: step: txt -> ok
+2025-10-06 20:45:31,668 INFO jarvis: completed request
+2025-10-06 20:45:31,668 INFO jarvis: handle: query kernel document
+2025-10-06 20:45:31,804 INFO jarvis: step: [local-llm] Decompose the goal into 2-4 concise steps: query kernel document -> ok
+2025-10-06 20:45:31,805 INFO jarvis: completed request
+2025-10-06 20:45:41,683 INFO jarvis: handle: please shutdown now
+2025-10-06 20:45:41,684 WARNING jarvis: blocked by policy: Blocked by policy: contains 'shutdown'
