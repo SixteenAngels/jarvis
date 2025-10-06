@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 from ..core.vectorstore.faiss_index import InMemoryVectorIndex
+from ..core.vectorstore.persistent_index import PersistentVectorIndex
 from ..core.vectorstore.utils import chunk_text
 from .base import BaseAgent
 
@@ -34,9 +35,16 @@ class ResearchAgent(BaseAgent):
         "rag",
     ]
 
-    def __init__(self, index: InMemoryVectorIndex | None = None) -> None:
+    def __init__(self, index: InMemoryVectorIndex | None = None, persist_dir: str | None = None) -> None:
         super().__init__()
-        self.index = index or InMemoryVectorIndex()
+        if index is not None:
+            self.index = index
+        elif persist_dir:
+            self.index = PersistentVectorIndex.load(persist_dir)
+            self._persist_dir = persist_dir
+        else:
+            self.index = InMemoryVectorIndex()
+            self._persist_dir = None
         VECTOR_DIR.mkdir(parents=True, exist_ok=True)
         ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -47,6 +55,14 @@ class ResearchAgent(BaseAgent):
             # Expect: "ingest <path>"
             path = lower.split(" ", 1)[1]
             res = self._ingest_path(Path(path))
+            # Persist if enabled
+            if getattr(self, '_persist_dir', None):
+                # Save the augmented index
+                assert isinstance(self.index, PersistentVectorIndex) or hasattr(self.index, 'save')
+                try:
+                    self.index.save(self._persist_dir)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             return {
                 "status": "ok",
                 "result": f"Ingested {res.num_chunks} chunks from {len(res.sources)} sources",
