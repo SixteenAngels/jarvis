@@ -14,6 +14,7 @@ from ..agents.defense_agent import DefenseAgent
 from ..agents.robotics import RoboticsAgent
 from ..agents.civil import CivilAgent
 from ..agents.defense.cybersec import CybersecDefenseAgent
+from ..agents.engineering.software import ComputerEngineerAgent
 
 
 class Router:
@@ -23,7 +24,7 @@ class Router:
     """
 
     def __init__(self, agents: Optional[List[BaseAgent]] = None) -> None:
-        # Default registry includes research, system, comms, biomedical, electrical, mechanical, software, defense, robotics, civil, cybersec_defense
+        # Default registry includes research, system, comms, biomedical, electrical, mechanical, software, defense, robotics, civil, cybersec_defense, computer_engineer
         self.agents: List[BaseAgent] = agents or [
             ResearchAgent(),
             SystemAgent(),
@@ -36,6 +37,7 @@ class Router:
             RoboticsAgent(),
             CivilAgent(),
             CybersecDefenseAgent(),
+            ComputerEngineerAgent(),
         ]
 
     def register(self, agent: BaseAgent) -> None:

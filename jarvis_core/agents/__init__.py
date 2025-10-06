@@ -9,6 +9,7 @@ from .software import SoftwareAgent
 from .defense_agent import DefenseAgent
 from .robotics import RoboticsAgent
 from .civil import CivilAgent
+from .engineering.software import ComputerEngineerAgent
 
 __all__ = [
     "BaseAgent",
@@ -22,4 +23,5 @@ __all__ = [
     "DefenseAgent",
     "RoboticsAgent",
     "CivilAgent",
+    "ComputerEngineerAgent",
 ]
