@@ -4,6 +4,8 @@ from .system import SystemAgent
 from .comms import CommsAgent
 from .biomedical import BiomedicalAgent
 from .electrical import ElectricalAgent
+from .mechanical import MechanicalAgent
+from .software import SoftwareAgent
 
 __all__ = [
     "BaseAgent",
@@ -12,4 +14,6 @@ __all__ = [
     "CommsAgent",
     "BiomedicalAgent",
     "ElectricalAgent",
+    "MechanicalAgent",
+    "SoftwareAgent",
 ]
