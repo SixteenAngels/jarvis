@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 
 from ..core.vectorstore.faiss_index import InMemoryVectorIndex
 from ..core.vectorstore.persistent_index import PersistentVectorIndex
-from ..core.vectorstore.utils import chunk_text
+from ..core.vectorstore.utils import chunk_text_overlap, cosine_similarity
 from .base import BaseAgent
 
 
@@ -70,36 +70,33 @@ class ResearchAgent(BaseAgent):
             }
         if lower.startswith("query ") or lower.startswith("ask ") or "retrieve" in lower:
             query = lower.split(" ", 1)[1] if " " in lower else lower
-            hits = self.index.search(query, k=int(context.get("k", 5)))
+            k = int(context.get("k", 5))
+            hits = self.index.search(query, k=k)
+            # Simple MMR-like reranking for diversity
+            try:
+                qvec = self.index.embedder.encode([query])[0]
+                hits = self._rerank_mmr(hits, qvec, k=k)
+            except Exception:
+                pass
             response = self._format_hits(hits)
             return {
                 "status": "ok",
                 "result": response,
-                "artifacts": [
-                    {
-                        "type": "citations",
-                        "items": [
-                            {"source": doc.metadata.get("source", "unknown"), "score": score}
-                            for (_, score, doc) in hits
-                        ],
-                    }
-                ],
+                "artifacts": [self._citations_from_hits(hits)],
             }
         # Fallback simple search
-        hits = self.index.search(lower, k=int(context.get("k", 5)))
+        k = int(context.get("k", 5))
+        hits = self.index.search(lower, k=k)
+        try:
+            qvec = self.index.embedder.encode([lower])[0]
+            hits = self._rerank_mmr(hits, qvec, k=k)
+        except Exception:
+            pass
         response = self._format_hits(hits)
         return {
             "status": "ok",
             "result": response,
-            "artifacts": [
-                {
-                    "type": "citations",
-                    "items": [
-                        {"source": doc.metadata.get("source", "unknown"), "score": score}
-                        for (_, score, doc) in hits
-                    ],
-                }
-            ],
+            "artifacts": [self._citations_from_hits(hits)],
         }
 
     # ----------------------- Helpers -------------------------
@@ -124,7 +121,7 @@ class ResearchAgent(BaseAgent):
             text = self._extract_pdf_text(file_path)
         else:
             text = file_path.read_text(encoding="utf-8", errors="ignore")
-        chunks = chunk_text(text, metadata={"source": str(file_path)})
+        chunks = chunk_text_overlap(text, metadata={"source": str(file_path)}, max_tokens=256, overlap=32)
         texts = [c.text for c in chunks]
         metas = [c.metadata for c in chunks]
         self.index.add_texts(texts, metas)
@@ -156,3 +153,46 @@ class ResearchAgent(BaseAgent):
             src = doc.metadata.get("source", "unknown")
             lines.append(f"{i}. [{score:.3f}] {src}: {doc.text[:160]}")
         return "\n".join(lines) if lines else "No results"
+
+    def _rerank_mmr(self, hits: List, query_vec: List[float], k: int = 5, lambda_param: float = 0.7) -> List:
+        if not hits:
+            return hits
+        selected: List[int] = []
+        candidates = list(range(len(hits)))
+        # Precompute query sims from hits (second item of tuple)
+        query_sims = [score for (_, score, _) in hits]
+        # First select highest query sim
+        best_first = max(candidates, key=lambda i: query_sims[i])
+        selected.append(best_first)
+        candidates.remove(best_first)
+        while len(selected) < min(k, len(hits)) and candidates:
+            def mmr_score(i: int) -> float:
+                # diversity penalty: max sim to already selected
+                max_sim = 0.0
+                for s in selected:
+                    doc_i = hits[i][2]
+                    doc_s = hits[s][2]
+                    sim = cosine_similarity(doc_i.vector, doc_s.vector)
+                    if sim > max_sim:
+                        max_sim = sim
+                return lambda_param * query_sims[i] - (1 - lambda_param) * max_sim
+
+            next_best = max(candidates, key=mmr_score)
+            selected.append(next_best)
+            candidates.remove(next_best)
+        # Build new list preserving selected order
+        return [hits[i] for i in selected]
+
+    def _citations_from_hits(self, hits: List) -> Dict[str, Any]:
+        # Deduplicate citations by source, keeping max score
+        by_source: Dict[str, float] = {}
+        for (_, score, doc) in hits:
+            src = doc.metadata.get("source", "unknown")
+            prev = by_source.get(src)
+            if prev is None or score > prev:
+                by_source[src] = score
+        items = sorted([
+            {"source": src, "score": sc}
+            for src, sc in by_source.items()
+        ], key=lambda x: x["score"], reverse=True)
+        return {"type": "citations", "items": items}
