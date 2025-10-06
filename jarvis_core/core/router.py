@@ -6,6 +6,8 @@ from ..agents.base import BaseAgent
 from ..agents.research import ResearchAgent
 from ..agents.system import SystemAgent
 from ..agents.comms import CommsAgent
+from ..agents.biomedical import BiomedicalAgent
+from ..agents.electrical import ElectricalAgent
 
 
 class Router:
@@ -15,8 +17,14 @@ class Router:
     """
 
     def __init__(self, agents: Optional[List[BaseAgent]] = None) -> None:
-        # Default registry includes research, system, and comms agents
-        self.agents: List[BaseAgent] = agents or [ResearchAgent(), SystemAgent(), CommsAgent()]
+        # Default registry includes research, system, comms, biomedical, electrical
+        self.agents: List[BaseAgent] = agents or [
+            ResearchAgent(),
+            SystemAgent(),
+            CommsAgent(),
+            BiomedicalAgent(),
+            ElectricalAgent(),
+        ]
 
     def register(self, agent: BaseAgent) -> None:
         self.agents.append(agent)
