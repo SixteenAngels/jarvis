@@ -7,6 +7,8 @@ from .electrical import ElectricalAgent
 from .mechanical import MechanicalAgent
 from .software import SoftwareAgent
 from .defense import DefenseAgent
+from .robotics import RoboticsAgent
+from .civil import CivilAgent
 
 __all__ = [
     "BaseAgent",
@@ -18,4 +20,6 @@ __all__ = [
     "MechanicalAgent",
     "SoftwareAgent",
     "DefenseAgent",
+    "RoboticsAgent",
+    "CivilAgent",
 ]
