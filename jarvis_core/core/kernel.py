@@ -8,10 +8,12 @@ from .reflection import Reflection
 from .router import Router
 from .memory.short_term import ShortTermMemory
 from .memory.long_term import LongTermMemory
+from ..utils.logging import get_logger
 
 
 class Kernel:
     def __init__(self, persist_dir: str = "/workspace/data/vectorstore") -> None:
+        self.logger = get_logger()
         self.policy = Policy()
         self.planner = Planner()
         self.reflection = Reflection()
@@ -21,8 +23,10 @@ class Kernel:
 
     def handle(self, user_input: str, context: Dict[str, Any] | None = None) -> Dict[str, Any]:
         context = context or {}
+        self.logger.info(f"handle: {user_input}")
         decision = self.policy.evaluate(user_input)
         if not decision.allowed:
+            self.logger.warning(f"blocked by policy: {decision.reason}")
             return {"status": "blocked", "result": decision.reason, "artifacts": []}
 
         self.short_mem.add(user_input)
@@ -38,5 +42,7 @@ class Kernel:
             # Persist meaningful outputs to long-term memory
             if resp.get("result"):
                 self.long_mem.add_document(str(resp.get("result")), source="kernel")
+            self.logger.info(f"step: {step.description} -> {resp.get('status')}")
         self.long_mem.save()
+        self.logger.info("completed request")
         return last_resp

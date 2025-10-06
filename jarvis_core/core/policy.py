@@ -24,11 +24,18 @@ DANGEROUS_KEYWORDS: List[str] = [
 
 
 class Policy:
-    def __init__(self, config_path: str | None = "/workspace/configs/policy.yaml") -> None:
+    def __init__(self, config_path: str | None = "/workspace/configs/policy.yaml", emergency_path: str | None = "/workspace/configs/emergency_policies.yaml") -> None:
         self.keywords: List[str] = list(DANGEROUS_KEYWORDS)
         if config_path and Path(config_path).exists():
             try:
                 data = yaml.safe_load(Path(config_path).read_text()) or {}
+                self.keywords = list(set(self.keywords + list(data.get("block_keywords", []))))
+            except Exception:
+                pass
+        # Emergency mode: add stricter keywords
+        if emergency_path and Path(emergency_path).exists():
+            try:
+                data = yaml.safe_load(Path(emergency_path).read_text()) or {}
                 self.keywords = list(set(self.keywords + list(data.get("block_keywords", []))))
             except Exception:
                 pass

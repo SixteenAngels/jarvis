@@ -39,6 +39,23 @@ class Router:
             CybersecDefenseAgent(),
             ComputerEngineerAgent(),
         ]
+        self._corrections_path = "/workspace/data/router_corrections.json"
+
+    def record_correction(self, task: str, corrected_agent: str) -> None:
+        import json, os
+        os.makedirs("/workspace/data", exist_ok=True)
+        try:
+            data: List[Dict[str, Any]] = []
+            try:
+                with open(self._corrections_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = []
+            data.append({"task": task, "agent": corrected_agent})
+            with open(self._corrections_path, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
 
     def register(self, agent: BaseAgent) -> None:
         self.agents.append(agent)
