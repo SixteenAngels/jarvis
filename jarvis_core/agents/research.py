@@ -88,7 +88,7 @@ class ResearchAgent(BaseAgent):
             sources: List[str] = []
             total = 0
             for p in path.rglob("*"):
-                if p.is_file() and p.suffix.lower() in {".txt", ".md"}:
+                if p.is_file() and p.suffix.lower() in {".txt", ".md", ".pdf"}:
                     n = self._ingest_file(p)
                     total += n
                     sources.append(str(p))
@@ -100,7 +100,10 @@ class ResearchAgent(BaseAgent):
     def _ingest_file(self, file_path: Path) -> int:
         if not file_path.exists():
             raise FileNotFoundError(str(file_path))
-        text = file_path.read_text(encoding="utf-8", errors="ignore")
+        if file_path.suffix.lower() == ".pdf":
+            text = self._extract_pdf_text(file_path)
+        else:
+            text = file_path.read_text(encoding="utf-8", errors="ignore")
         chunks = chunk_text(text, metadata={"source": str(file_path)})
         texts = [c.text for c in chunks]
         metas = [c.metadata for c in chunks]
@@ -110,6 +113,22 @@ class ResearchAgent(BaseAgent):
             for meta in metas:
                 f.write(json.dumps(meta) + "\n")
         return len(chunks)
+
+    def _extract_pdf_text(self, file_path: Path) -> str:
+        try:
+            from pypdf import PdfReader  # type: ignore
+        except Exception:
+            return ""
+        try:
+            reader = PdfReader(str(file_path))
+            texts: List[str] = []
+            for page in reader.pages:
+                t = page.extract_text() or ""
+                if t:
+                    texts.append(t)
+            return "\n".join(texts)
+        except Exception:
+            return ""
 
     def _format_hits(self, hits: List) -> str:
         lines: List[str] = []
