@@ -5,6 +5,7 @@ from typing import Dict, Any, List
 
 from .base import BaseAgent
 from ..engineering.tools.freecad_interface import generate_cad_stub
+from ..engineering.tools.openscad_cli import run_openscad
 
 
 @dataclass
@@ -58,9 +59,13 @@ class MechanicalAgent(BaseAgent):
             return {"status": "ok", "result": f"ratio ≈ {gr:.3f} (driven/driver)", "artifacts": []}
 
         if lower.startswith("generate cad"):
-            # format: generate cad <outdir>
+            # format: generate cad <outdir> [scad=<file.scad>]
             parts = task.split(" ", 2)
             outdir = parts[2] if len(parts) > 2 else "/workspace/data/artifacts/cad"
+            scad = context.get("scad")
+            if scad:
+                res = run_openscad(scad, output_path=f"{outdir}/model.stl")
+                return res
             path = generate_cad_stub(outdir)
             return {"status": "ok", "result": f"cad at {path}", "artifacts": [{"type": "cad", "path": path}]}
 

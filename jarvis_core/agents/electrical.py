@@ -5,6 +5,7 @@ from typing import Dict, Any, List
 
 from .base import BaseAgent
 from ..engineering.tools.spice_interface import simulate_circuit_stub
+from ..engineering.tools.ngspice_cli import run_ngspice
 
 
 @dataclass
@@ -53,9 +54,8 @@ class ElectricalAgent(BaseAgent):
         if lower.startswith("simulate "):
             # simulate <netlist_path>
             netlist = task.split(" ", 1)[1].strip()
-            res = simulate_circuit_stub(netlist)
-            status = "ok" if res.startswith("ok") else "error"
-            return {"status": status, "result": res, "artifacts": []}
+            out = run_ngspice(netlist)
+            return out
 
         return {"status": "error", "result": "Unknown electrical command", "artifacts": []}
 
