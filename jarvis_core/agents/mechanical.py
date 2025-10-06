@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, List
 
 from .base import BaseAgent
+from ..engineering.tools.freecad_interface import generate_cad_stub
 
 
 @dataclass
@@ -55,6 +56,13 @@ class MechanicalAgent(BaseAgent):
             z2 = int(params.get("driven", 40))
             gr = gear_ratio(z1, z2)
             return {"status": "ok", "result": f"ratio ≈ {gr:.3f} (driven/driver)", "artifacts": []}
+
+        if lower.startswith("generate cad"):
+            # format: generate cad <outdir>
+            parts = task.split(" ", 2)
+            outdir = parts[2] if len(parts) > 2 else "/workspace/data/artifacts/cad"
+            path = generate_cad_stub(outdir)
+            return {"status": "ok", "result": f"cad at {path}", "artifacts": [{"type": "cad", "path": path}]}
 
         return {"status": "error", "result": "Unknown mechanical command", "artifacts": []}
 

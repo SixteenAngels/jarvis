@@ -9,6 +9,7 @@ from ..core.vectorstore.faiss_index import InMemoryVectorIndex
 from ..core.vectorstore.persistent_index import PersistentVectorIndex
 from ..core.vectorstore.factory import get_index
 from ..core.vectorstore.utils import chunk_text_overlap, cosine_similarity
+from ..core.vectorstore.bm25 import bm25_scores
 from .base import BaseAgent
 
 
@@ -85,6 +86,10 @@ class ResearchAgent(BaseAgent):
             try:
                 qvec = self.index.embedder.encode([query])[0]
                 hits = self._rerank_mmr(hits, qvec, k=k)
+                # BM25 hybrid boost
+                texts = [doc.text for (_, _, doc) in hits]
+                bm = bm25_scores(query, texts)
+                hits = [ (i, score + 0.1*bm[j], doc) for j,(i,score,doc) in enumerate(hits) ]
             except Exception:
                 pass
             response = self._format_hits(hits)
@@ -99,6 +104,9 @@ class ResearchAgent(BaseAgent):
         try:
             qvec = self.index.embedder.encode([lower])[0]
             hits = self._rerank_mmr(hits, qvec, k=k)
+            texts = [doc.text for (_, _, doc) in hits]
+            bm = bm25_scores(lower, texts)
+            hits = [ (i, score + 0.1*bm[j], doc) for j,(i,score,doc) in enumerate(hits) ]
         except Exception:
             pass
         response = self._format_hits(hits)
