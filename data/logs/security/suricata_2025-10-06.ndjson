@@ -1,0 +1,1 @@
+{"timestamp": "2025-10-06T12:00:00", "event_type": "alert", "src_ip": "10.0.0.1", "dest_ip": "10.0.0.2", "alert": {"severity": 3, "signature": "Test"}, "flow": {}, "raw": {"timestamp": "2025-10-06T12:00:00", "event_type": "alert", "src_ip": "10.0.0.1", "dest_ip": "10.0.0.2", "alert": {"severity": 3, "signature": "Test"}}}

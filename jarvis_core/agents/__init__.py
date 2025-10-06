@@ -6,7 +6,7 @@ from .biomedical import BiomedicalAgent
 from .electrical import ElectricalAgent
 from .mechanical import MechanicalAgent
 from .software import SoftwareAgent
-from .defense import DefenseAgent
+from .defense_agent import DefenseAgent
 from .robotics import RoboticsAgent
 from .civil import CivilAgent
 

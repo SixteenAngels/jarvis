@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from jarvis_core.core.router import Router
-from jarvis_core.agents.defense import DefenseAgent
+from jarvis_core.agents.defense_agent import DefenseAgent
 
 
 def test_defense_scan_detects_patterns(tmp_path: Path) -> None:
