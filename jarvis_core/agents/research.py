@@ -41,7 +41,15 @@ class ResearchAgent(BaseAgent):
         if index is not None:
             self.index = index
         elif persist_dir:
-            self.index = get_index(backend="memory", persist_dir=persist_dir)
+            backend_cfg = backend
+            # Try to load from vectorstore.yaml if present
+            try:
+                from ..utils.config import load_yaml  # type: ignore
+                cfg = load_yaml("/workspace/configs/vectorstore.yaml")
+                backend_cfg = cfg.get("backend", backend_cfg)
+            except Exception:
+                pass
+            self.index = get_index(backend=backend_cfg, persist_dir=persist_dir)
             self._persist_dir = persist_dir
         else:
             self.index = get_index(backend=backend)

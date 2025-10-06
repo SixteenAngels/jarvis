@@ -1,0 +1,9 @@
+selector:
+  prefer: cloud  # cloud|local|auto
+  backoff_seconds: 30
+  cloud:
+    provider: openai
+    model: gpt-5
+  local:
+    provider: local
+    model: small
