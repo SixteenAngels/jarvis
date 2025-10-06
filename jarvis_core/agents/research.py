@@ -7,6 +7,7 @@ from typing import Dict, Any, List
 
 from ..core.vectorstore.faiss_index import InMemoryVectorIndex
 from ..core.vectorstore.persistent_index import PersistentVectorIndex
+from ..core.vectorstore.factory import get_index
 from ..core.vectorstore.utils import chunk_text_overlap, cosine_similarity
 from .base import BaseAgent
 
@@ -35,15 +36,15 @@ class ResearchAgent(BaseAgent):
         "rag",
     ]
 
-    def __init__(self, index: InMemoryVectorIndex | None = None, persist_dir: str | None = None) -> None:
+    def __init__(self, index: InMemoryVectorIndex | None = None, persist_dir: str | None = None, backend: str = "memory") -> None:
         super().__init__()
         if index is not None:
             self.index = index
         elif persist_dir:
-            self.index = PersistentVectorIndex.load(persist_dir)
+            self.index = get_index(backend="memory", persist_dir=persist_dir)
             self._persist_dir = persist_dir
         else:
-            self.index = InMemoryVectorIndex()
+            self.index = get_index(backend=backend)
             self._persist_dir = None
         VECTOR_DIR.mkdir(parents=True, exist_ok=True)
         ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -151,7 +152,8 @@ class ResearchAgent(BaseAgent):
         lines: List[str] = []
         for i, (idx, score, doc) in enumerate(hits, 1):
             src = doc.metadata.get("source", "unknown")
-            lines.append(f"{i}. [{score:.3f}] {src}: {doc.text[:160]}")
+            anchor = doc.text[:30].replace("\n", " ")
+            lines.append(f"{i}. [{score:.3f}] {src} — ‘{anchor}…’")
         return "\n".join(lines) if lines else "No results"
 
     def _rerank_mmr(self, hits: List, query_vec: List[float], k: int = 5, lambda_param: float = 0.7) -> List:
@@ -192,7 +194,11 @@ class ResearchAgent(BaseAgent):
             if prev is None or score > prev:
                 by_source[src] = score
         items = sorted([
-            {"source": src, "score": sc}
+            {
+                "source": src,
+                "score": sc,
+                "snippet": next((doc.text[:120] for (_, s, doc) in hits if doc.metadata.get("source", "unknown") == src and s == sc), ""),
+            }
             for src, sc in by_source.items()
         ], key=lambda x: x["score"], reverse=True)
         return {"type": "citations", "items": items}
