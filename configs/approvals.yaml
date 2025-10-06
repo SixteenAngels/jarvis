@@ -1,0 +1,7 @@
+responses:
+  isolate_host:
+    threshold_confidence: 0.95
+    requires_approval: true
+  block_ip:
+    threshold_confidence: 0.9
+    requires_approval: false

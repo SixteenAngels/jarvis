@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
+import time
+from contextlib import contextmanager
 from typing import Dict, Any, List, Iterable
 
 from .faiss_index import InMemoryVectorIndex
@@ -57,9 +60,15 @@ class PersistentVectorIndex(InMemoryVectorIndex):
         dirp = Path(dir_path)
         dirp.mkdir(parents=True, exist_ok=True)
         idx_path = self._index_path(dirp)
-        with idx_path.open("w", encoding="utf-8") as f:
-            for doc in self._docs:
-                f.write(json.dumps({"text": doc.text, "metadata": doc.metadata}) + "\n")
+        # backup existing file
+        if idx_path.exists():
+            ts = int(time.time())
+            backup = idx_path.parent / f"{idx_path.name}.bak.{ts}"
+            shutil.copy2(idx_path, backup)
+        with self._file_lock(dirp):
+            with idx_path.open("w", encoding="utf-8") as f:
+                for doc in self._docs:
+                    f.write(json.dumps({"text": doc.text, "metadata": doc.metadata}) + "\n")
         self._persist_dir = dirp
 
     def append(self, texts: Iterable[str], metadatas: Iterable[Dict[str, Any]]) -> None:
@@ -68,6 +77,19 @@ class PersistentVectorIndex(InMemoryVectorIndex):
         if not self._persist_dir:
             return
         idx_path = self._index_path(self._persist_dir)
-        with idx_path.open("a", encoding="utf-8") as f:
-            for text, meta in zip(texts, metadatas):
-                f.write(json.dumps({"text": text, "metadata": meta}) + "\n")
+        with self._file_lock(self._persist_dir):
+            with idx_path.open("a", encoding="utf-8") as f:
+                for text, meta in zip(texts, metadatas):
+                    f.write(json.dumps({"text": text, "metadata": meta}) + "\n")
+
+    @contextmanager
+    def _file_lock(self, dirp: Path):
+        lock = dirp / ".lock"
+        try:
+            while lock.exists():
+                time.sleep(0.05)
+            lock.touch(exist_ok=False)
+            yield
+        finally:
+            if lock.exists():
+                lock.unlink()

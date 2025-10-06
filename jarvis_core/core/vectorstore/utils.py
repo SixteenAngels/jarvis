@@ -26,6 +26,22 @@ def simple_tokenize(text: str, max_tokens: int = 256) -> List[str]:
     return chunks
 
 
+def chunk_text_overlap(text: str, metadata: Dict[str, Any], max_tokens: int = 256, overlap: int = 32) -> List[TextChunk]:
+    if not text:
+        return []
+    words = text.split()
+    chunks: List[TextChunk] = []
+    start = 0
+    while start < len(words):
+        end = min(start + max_tokens, len(words))
+        chunk = " ".join(words[start:end])
+        chunks.append(TextChunk(chunk, metadata))
+        if end == len(words):
+            break
+        start = max(0, end - overlap)
+    return chunks
+
+
 def chunk_text(text: str, metadata: Dict[str, Any], max_tokens: int = 256) -> List[TextChunk]:
     return [TextChunk(t, metadata) for t in simple_tokenize(text, max_tokens=max_tokens)]
 
