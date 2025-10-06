@@ -79,3 +79,12 @@
 {"source": "/tmp/pytest-of-ubuntu/pytest-19/test_research_agent_returns_ci0/note.txt"}
 {"source": "/tmp/pytest-of-ubuntu/pytest-19/test_research_agent_reads_vect0/x.txt"}
 {"source": "/tmp/pytest-of-ubuntu/pytest-19/test_research_agent_uses_persi0/note.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_research_ingest_and_query0/doc.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_router_routes_to_research0/doc.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_backend_factory_memory0/d.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_citation_snippet0/s.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_citations_dedup_and_reran0/b.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_citations_dedup_and_reran0/a.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_research_agent_returns_ci0/note.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_research_agent_reads_vect0/x.txt"}
+{"source": "/tmp/pytest-of-ubuntu/pytest-20/test_research_agent_uses_persi0/note.txt"}

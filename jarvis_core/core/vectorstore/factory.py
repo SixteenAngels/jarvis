@@ -5,6 +5,8 @@ from typing import Optional
 
 from .faiss_index import InMemoryVectorIndex
 from .persistent_index import PersistentVectorIndex
+from .faiss_backend import FaissVectorIndex
+from .annoy_backend import AnnoyVectorIndex
 
 
 def get_index(backend: str = "memory", persist_dir: Optional[str] = None):
@@ -17,16 +19,12 @@ def get_index(backend: str = "memory", persist_dir: Optional[str] = None):
             return PersistentVectorIndex()
     if backend == "faiss":
         try:
-            import faiss  # type: ignore  # noqa: F401
-            # Placeholder: would build a real FAISS index wrapper
-            return InMemoryVectorIndex()
+            return FaissVectorIndex()
         except Exception:
             return InMemoryVectorIndex()
     if backend == "annoy":
         try:
-            import annoy  # type: ignore  # noqa: F401
-            # Placeholder: would build a real Annoy index wrapper
-            return InMemoryVectorIndex()
+            return AnnoyVectorIndex()
         except Exception:
             return InMemoryVectorIndex()
     return InMemoryVectorIndex()
