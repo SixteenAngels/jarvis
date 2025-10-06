@@ -75,12 +75,32 @@ class ResearchAgent(BaseAgent):
             return {
                 "status": "ok",
                 "result": response,
-                "artifacts": [],
+                "artifacts": [
+                    {
+                        "type": "citations",
+                        "items": [
+                            {"source": doc.metadata.get("source", "unknown"), "score": score}
+                            for (_, score, doc) in hits
+                        ],
+                    }
+                ],
             }
         # Fallback simple search
         hits = self.index.search(lower, k=int(context.get("k", 5)))
         response = self._format_hits(hits)
-        return {"status": "ok", "result": response, "artifacts": []}
+        return {
+            "status": "ok",
+            "result": response,
+            "artifacts": [
+                {
+                    "type": "citations",
+                    "items": [
+                        {"source": doc.metadata.get("source", "unknown"), "score": score}
+                        for (_, score, doc) in hits
+                    ],
+                }
+            ],
+        }
 
     # ----------------------- Helpers -------------------------
     def _ingest_path(self, path: Path) -> IngestResult:

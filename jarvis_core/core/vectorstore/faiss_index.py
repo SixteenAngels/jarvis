@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Tuple
 
 from .utils import SimpleEmbedder, top_k_by_cosine
+from .embedding import EmbeddingAdapter
 
 
 @dataclass
@@ -20,8 +21,9 @@ class InMemoryVectorIndex:
     heavyweight native dependencies.
     """
 
-    def __init__(self, embedder: SimpleEmbedder | None = None) -> None:
-        self.embedder = embedder or SimpleEmbedder()
+    def __init__(self, embedder: SimpleEmbedder | EmbeddingAdapter | None = None) -> None:
+        # Prefer EmbeddingAdapter if none provided
+        self.embedder = embedder or EmbeddingAdapter()
         self._docs: List[IndexedChunk] = []
 
     def add_texts(self, texts: List[str], metadatas: List[Dict[str, Any]] | None = None) -> List[int]:
