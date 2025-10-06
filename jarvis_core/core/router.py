@@ -4,6 +4,8 @@ from typing import List, Dict, Any, Optional
 
 from ..agents.base import BaseAgent
 from ..agents.research import ResearchAgent
+from ..agents.system import SystemAgent
+from ..agents.comms import CommsAgent
 
 
 class Router:
@@ -13,7 +15,8 @@ class Router:
     """
 
     def __init__(self, agents: Optional[List[BaseAgent]] = None) -> None:
-        self.agents: List[BaseAgent] = agents or [ResearchAgent()]
+        # Default registry includes research, system, and comms agents
+        self.agents: List[BaseAgent] = agents or [ResearchAgent(), SystemAgent(), CommsAgent()]
 
     def register(self, agent: BaseAgent) -> None:
         self.agents.append(agent)
