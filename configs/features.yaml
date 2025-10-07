@@ -1,0 +1,10 @@
+features:
+  whisper: true
+  yolo: true
+  faiss: true
+  annoy: true
+  cross_encoder: true
+  mqtt: true
+  ros2: true
+  api_auth_token: "changeme-token"
+  rate_limit_per_min: 60
