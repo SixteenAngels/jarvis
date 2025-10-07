@@ -4,8 +4,7 @@ Quickstart
 
 - Install deps:
   - Python 3.11+
-  - Minimal: pip install -r requirements.txt (base runtime)
-  - Full stack: pip install -r requirements/full.txt (installs AI/Vision/IoT/Robotics toolchain)
+  - Full stack: pip install -r requirements.txt (installs AI/Vision/IoT/Robotics toolchain)
 - Optional system tools (for integrations):
   - ngspice (circuit simulation)
   - openscad (CAD generation)
