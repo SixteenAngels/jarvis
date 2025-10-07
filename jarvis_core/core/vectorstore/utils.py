@@ -32,10 +32,24 @@ def chunk_text_overlap(text: str, metadata: Dict[str, Any], max_tokens: int = 25
     words = text.split()
     chunks: List[TextChunk] = []
     start = 0
+    # Track character offsets to provide provenance anchors
+    # We compute a naïve mapping from word index to character offset.
+    char_offsets: List[int] = []
+    idx = 0
+    for i, w in enumerate(words):
+        char_offsets.append(idx)
+        idx += len(w) + 1  # assume a single space between tokens
     while start < len(words):
         end = min(start + max_tokens, len(words))
         chunk = " ".join(words[start:end])
-        chunks.append(TextChunk(chunk, metadata))
+        meta = dict(metadata)
+        # Add approximate provenance offsets (character-based)
+        try:
+            meta["start"] = char_offsets[start]
+            meta["end"] = char_offsets[end - 1] + len(words[end - 1])
+        except Exception:
+            pass
+        chunks.append(TextChunk(chunk, meta))
         if end == len(words):
             break
         start = max(0, end - overlap)

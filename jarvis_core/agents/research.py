@@ -10,6 +10,7 @@ from ..core.vectorstore.persistent_index import PersistentVectorIndex
 from ..core.vectorstore.factory import get_index
 from ..core.vectorstore.utils import chunk_text_overlap, cosine_similarity
 from ..core.vectorstore.bm25 import bm25_scores
+from ..core.vectorstore.cross_encoder import CrossEncoderReranker
 from .base import BaseAgent
 
 
@@ -57,6 +58,7 @@ class ResearchAgent(BaseAgent):
             self._persist_dir = None
         VECTOR_DIR.mkdir(parents=True, exist_ok=True)
         ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+        self._cross = CrossEncoderReranker()
 
     # ----------------------- Public API -----------------------
     def execute(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -89,6 +91,9 @@ class ResearchAgent(BaseAgent):
                 # BM25 hybrid boost
                 texts = [doc.text for (_, _, doc) in hits]
                 bm = bm25_scores(query, texts)
+                ce_order = self._cross.rerank(query, texts, bm)
+                # reorder hits by cross-encoder order; sum scores for stability
+                hits = [hits[j] for j in ce_order]
                 hits = [ (i, score + 0.1*bm[j], doc) for j,(i,score,doc) in enumerate(hits) ]
             except Exception:
                 pass
@@ -106,6 +111,8 @@ class ResearchAgent(BaseAgent):
             hits = self._rerank_mmr(hits, qvec, k=k)
             texts = [doc.text for (_, _, doc) in hits]
             bm = bm25_scores(lower, texts)
+            ce_order = self._cross.rerank(lower, texts, bm)
+            hits = [hits[j] for j in ce_order]
             hits = [ (i, score + 0.1*bm[j], doc) for j,(i,score,doc) in enumerate(hits) ]
         except Exception:
             pass
