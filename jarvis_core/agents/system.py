@@ -25,6 +25,9 @@ class SystemAgent(BaseAgent):
     def execute(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
         # Expect commands like: "run: echo hello" or "run echo hello"
         lower = task.strip()
+        if lower.lower() in {"run api", "start api", "serve api"}:
+            cmd = "uvicorn jarvis_core.core.http_api_fast:app --host 0.0.0.0 --port 8000"
+            return {"status": "ok", "result": cmd, "artifacts": [{"type": "hint", "path": "scripts/run_api.py"}]}
         cmd = None
         if lower.lower().startswith("run:"):
             cmd = lower.split(":", 1)[1].strip()
