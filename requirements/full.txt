@@ -29,7 +29,6 @@ azure-cognitiveservices-speech
 # === Vision / Camera / AR-VR ===
 opencv-python
 ultralytics
-mediapipe
 face-recognition
 Pillow
 numpy
