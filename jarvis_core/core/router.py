@@ -40,6 +40,7 @@ class Router:
             ComputerEngineerAgent(),
         ]
         self._corrections_path = "/workspace/data/router_corrections.json"
+        self._weights: Dict[str, float] = self._load_weights()
 
     def record_correction(self, task: str, corrected_agent: str) -> None:
         import json, os
@@ -57,11 +58,35 @@ class Router:
         except Exception:
             pass
 
+    def _load_weights(self) -> Dict[str, float]:
+        """Load simple per-agent weights from corrections history.
+
+        Agents that were used as corrections receive a small positive weight,
+        biasing selection when multiple agents can_handle().
+        """
+        import json
+        try:
+            with open(self._corrections_path, "r", encoding="utf-8") as f:
+                rows = json.load(f)
+        except Exception:
+            rows = []
+        weights: Dict[str, float] = {}
+        for row in rows:
+            agent = row.get("agent")
+            if agent:
+                weights[agent] = weights.get(agent, 0.0) + 0.1
+        return weights
+
     def register(self, agent: BaseAgent) -> None:
         self.agents.append(agent)
 
     def route(self, task: str, context: Dict[str, Any] | None = None) -> Dict[str, Any]:
         context = context or {}
+        # Prefer agents with a positive learned weight when multiple match
+        candidates: List[BaseAgent] = [a for a in self.agents if a.can_handle(task)]
+        if candidates:
+            candidates.sort(key=lambda a: self._weights.get(getattr(a, "name", a.__class__.__name__), 0.0), reverse=True)
+            return candidates[0].execute(task, context)
         for agent in self.agents:
             if agent.can_handle(task):
                 return agent.execute(task, context)
