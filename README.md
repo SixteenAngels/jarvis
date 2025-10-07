@@ -5,6 +5,14 @@ Quickstart
 - Install deps:
   - Python 3.11+
   - pip install -r requirements.txt
+- Optional system tools (for integrations):
+  - ngspice (circuit simulation)
+  - openscad (CAD generation)
+  - kicad-cli/pcbnew (PCB DRC)
+  - freecad (CAD workflows)
+  - suricata, zeek (defensive SOC ingestion)
+  - ffmpeg (media handling), mosquitto-clients (MQTT)
+  - Install helper: scripts/install_tools.sh (Debian/Ubuntu)
 - Run tests:
   - PYTHONPATH=. pytest -q
 - CLI:
