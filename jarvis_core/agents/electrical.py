@@ -6,6 +6,8 @@ from typing import Dict, Any, List
 from .base import BaseAgent
 from ..engineering.tools.spice_interface import simulate_circuit_stub
 from ..engineering.tools.ngspice_cli import run_ngspice
+from ..engineering.tools.kicad_cli import run_kicad_drc
+from pathlib import Path
 
 
 @dataclass
@@ -56,6 +58,22 @@ class ElectricalAgent(BaseAgent):
             netlist = task.split(" ", 1)[1].strip()
             out = run_ngspice(netlist)
             return out
+
+        if lower.startswith("drc ") or lower.startswith("kicad drc "):
+            # drc <board.kicad_pcb>
+            board = task.split(" ", 1)[1].strip() if lower.startswith("drc ") else task.split(" ", 2)[2].strip()
+            res = run_kicad_drc(board)
+            # persist result as artifact for traceability
+            try:
+                artifacts_dir = Path("/workspace/data/artifacts/drc")
+                artifacts_dir.mkdir(parents=True, exist_ok=True)
+                board_name = Path(board).stem or "board"
+                out_path = artifacts_dir / f"{board_name}_drc.txt"
+                (out_path).write_text(res.get("result", ""), encoding="utf-8")
+                res.setdefault("artifacts", []).append({"type": "drc", "path": str(out_path)})
+            except Exception:
+                pass
+            return res
 
         return {"status": "error", "result": "Unknown electrical command", "artifacts": []}
 

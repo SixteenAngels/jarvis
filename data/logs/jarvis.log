@@ -53,3 +53,14 @@
 2025-10-06 23:55:35,571 INFO jarvis: completed request
 2025-10-06 23:55:45,678 INFO jarvis: handle: please shutdown now
 2025-10-06 23:55:45,681 WARNING jarvis: blocked by policy: Blocked by policy: contains 'shutdown'
+2025-10-07 09:49:21,285 INFO jarvis: handle: please rm -rf /
+2025-10-07 09:49:21,291 WARNING jarvis: blocked by policy: Blocked by policy: contains 'rm -rf'
+2025-10-07 09:49:23,895 INFO jarvis: handle: ingest /tmp/pytest-of-ubuntu/pytest-26/test_kernel_basic_flow0/doc.txt
+2025-10-07 09:49:24,765 INFO jarvis: step: [local-llm] Decompose the goal into 2-4 concise steps: ingest /tmp/pytest-of-ubuntu/pytest-26/test_kernel_basic_flow0/doc -> ok
+2025-10-07 09:49:25,558 INFO jarvis: step: txt -> ok
+2025-10-07 09:49:25,560 INFO jarvis: completed request
+2025-10-07 09:49:25,561 INFO jarvis: handle: query kernel document
+2025-10-07 09:49:26,161 INFO jarvis: step: [local-llm] Decompose the goal into 2-4 concise steps: query kernel document -> ok
+2025-10-07 09:49:26,166 INFO jarvis: completed request
+2025-10-07 09:49:38,116 INFO jarvis: handle: please shutdown now
+2025-10-07 09:49:38,116 WARNING jarvis: blocked by policy: Blocked by policy: contains 'shutdown'
