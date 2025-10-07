@@ -1,0 +1,134 @@
+# === Core AI & NLP ===
+openai
+anthropic
+transformers
+torch
+sentence-transformers
+langchain
+langchain-community
+langgraph
+faiss-cpu
+tiktoken
+
+# === Memory / Vector Storage ===
+chromadb
+weaviate-client
+pinecone-client
+redis
+duckdb
+
+# === Speech (STT / TTS) ===
+openai-whisper
+SpeechRecognition
+pydub
+sounddevice
+elevenlabs
+gtts
+azure-cognitiveservices-speech
+
+# === Vision / Camera / AR-VR ===
+opencv-python
+ultralytics
+mediapipe
+face-recognition
+Pillow
+numpy
+matplotlib
+pyrealsense2
+pyopengl
+pygame
+pythreejs
+
+# === Robotics / Control ===
+pyserial
+RPi.GPIO
+adafruit-circuitpython-motor
+pyfirmata
+dronekit
+opencv-contrib-python
+pybullet
+roslibpy
+
+# === IoT / Networking ===
+paho-mqtt
+requests
+flask
+flask-socketio
+fastapi
+uvicorn
+aiohttp
+websockets
+paramiko
+python-nmap
+
+# === Security & Offensive Toolkit (God’sEye Cybersec) ===
+scapy
+shodan
+requests[socks]
+beautifulsoup4
+cryptography
+pycryptodome
+hashlib
+python-whois
+dnspython
+netifaces
+psutil
+
+# === Data / Knowledge / Research Agents ===
+pandas
+numpy
+scikit-learn
+scipy
+duckduckgo-search
+newspaper3k
+arxiv
+wikipedia
+pdfminer.six
+PyPDF2
+
+# === Simulation / Engineering ===
+sympy
+simpy
+matplotlib
+plotly
+pyyaml
+
+# === AR/VR Display + HUD ===
+pyqt5
+pyopengl
+pygame
+opencv-python-headless
+kivy
+
+# === DevOps / System Automation ===
+psutil
+schedule
+watchdog
+
+# === Utils / Logging / Encryption ===
+loguru
+rich
+cryptography
+python-dotenv
+colorama
+pyjwt
+
+# === Testing / CI ===
+pytest
+pytest-asyncio
+coverage
+black
+flake8
+mypy
+
+# === Docs / Markdown / Export ===
+mkdocs
+pypandoc
+markdown
+docutils
+
+# === Misc ===
+tqdm
+requests_toolbelt
+aiofiles
+jsonschema

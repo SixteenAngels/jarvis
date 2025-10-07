@@ -5,7 +5,8 @@ authors = [{name = "Jarvis Core Team"}]
 description = "Unified ASI core with RAG and multi-agent architecture"
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+]
 
 [build-system]
 requires = ["setuptools>=67", "wheel"]
