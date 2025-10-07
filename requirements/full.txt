@@ -61,14 +61,13 @@ websockets
 paramiko
 python-nmap
 
-# === Security & Offensive Toolkit (God’sEye Cybersec) ===
+# === Security & Defensive Toolkit (God’sEye Cybersec) ===
 scapy
 shodan
 requests[socks]
 beautifulsoup4
 cryptography
 pycryptodome
-hashlib
 python-whois
 dnspython
 netifaces
@@ -76,7 +75,6 @@ psutil
 
 # === Data / Knowledge / Research Agents ===
 pandas
-numpy
 scikit-learn
 scipy
 duckduckgo-search
@@ -89,26 +87,21 @@ PyPDF2
 # === Simulation / Engineering ===
 sympy
 simpy
-matplotlib
 plotly
 pyyaml
 
 # === AR/VR Display + HUD ===
 pyqt5
-pyopengl
-pygame
-opencv-python-headless
 kivy
+opencv-python-headless
 
 # === DevOps / System Automation ===
-psutil
 schedule
 watchdog
 
 # === Utils / Logging / Encryption ===
 loguru
 rich
-cryptography
 python-dotenv
 colorama
 pyjwt
