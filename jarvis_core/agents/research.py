@@ -11,6 +11,8 @@ from ..core.vectorstore.factory import get_index
 from ..core.vectorstore.utils import chunk_text_overlap, cosine_similarity
 from ..core.vectorstore.bm25 import bm25_scores
 from ..core.vectorstore.cross_encoder import CrossEncoderReranker
+from ..utils.config import load_yaml
+import hashlib
 from .base import BaseAgent
 
 
@@ -58,7 +60,8 @@ class ResearchAgent(BaseAgent):
             self._persist_dir = None
         VECTOR_DIR.mkdir(parents=True, exist_ok=True)
         ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-        self._cross = CrossEncoderReranker()
+        feats = load_yaml("/workspace/configs/features.yaml").get("features", {})
+        self._cross = CrossEncoderReranker() if feats.get("cross_encoder", True) else CrossEncoderReranker("")
 
     # ----------------------- Public API -----------------------
     def execute(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -145,9 +148,15 @@ class ResearchAgent(BaseAgent):
             text = self._extract_pdf_text(file_path)
         else:
             text = file_path.read_text(encoding="utf-8", errors="ignore")
-        chunks = chunk_text_overlap(text, metadata={"source": str(file_path)}, max_tokens=256, overlap=32)
+        doc_id = hashlib.sha1(str(file_path).encode("utf-8")).hexdigest()[:16]
+        base_meta = {"source": str(file_path), "doc_id": doc_id, "page": 1}
+        chunks = chunk_text_overlap(text, metadata=base_meta, max_tokens=256, overlap=32)
         texts = [c.text for c in chunks]
-        metas = [c.metadata for c in chunks]
+        metas = []
+        for idx, c in enumerate(chunks):
+            m = dict(c.metadata)
+            m["chunk_index"] = idx
+            metas.append(m)
         self.index.add_texts(texts, metas)
         # write meta.jsonl append-only
         with META_PATH.open("a", encoding="utf-8") as f:
