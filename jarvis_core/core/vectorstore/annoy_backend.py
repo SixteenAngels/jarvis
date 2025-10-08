@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import List, Dict, Any, Tuple
+from pathlib import Path
+import json
 
 try:
     from annoy import AnnoyIndex  # type: ignore
@@ -19,6 +21,7 @@ class AnnoyVectorIndex:
         self._texts: List[str] = []
         self._metas: List[Dict[str, Any]] = []
         self._n_trees = n_trees
+        self._dim: int | None = None
 
     def _ensure_index(self, dim: int) -> None:
         if self._index is None:
@@ -31,6 +34,7 @@ class AnnoyVectorIndex:
         if not vecs:
             return []
         dim = len(vecs[0])
+        self._dim = dim
         self._ensure_index(dim)
         ids: List[int] = []
         for offset, v in enumerate(vecs):
@@ -56,3 +60,46 @@ class AnnoyVectorIndex:
 
     def __len__(self) -> int:  # pragma: no cover - trivial
         return len(self._texts)
+
+    # ---------------- Persistence -----------------
+    @classmethod
+    def load(cls, dir_path: str | Path) -> "AnnoyVectorIndex":
+        dirp = Path(dir_path)
+        idx_file = dirp / "index.ann"
+        txt_file = dirp / "texts.jsonl"
+        inst = cls()
+        if not idx_file.exists() or not txt_file.exists():
+            return inst
+        # Load texts/metas first to get dim from embedder if needed
+        texts: List[str] = []
+        metas: List[Dict[str, Any]] = []
+        with txt_file.open("r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                obj = json.loads(line)
+                texts.append(obj.get("text", ""))
+                metas.append(obj.get("metadata", {}))
+        # Re-embed to recover dimension (approximate)
+        vecs = inst.embedder.encode(texts[:1])
+        if not vecs:
+            return inst
+        dim = len(vecs[0])
+        inst._ensure_index(dim)
+        # Load index structure
+        inst._index.load(str(idx_file))
+        inst._texts = texts
+        inst._metas = metas
+        return inst
+
+    def save(self, dir_path: str | Path) -> None:
+        dirp = Path(dir_path)
+        dirp.mkdir(parents=True, exist_ok=True)
+        idx_file = dirp / "index.ann"
+        txt_file = dirp / "texts.jsonl"
+        if self._index is None:
+            return
+        self._index.save(str(idx_file))
+        with txt_file.open("w", encoding="utf-8") as f:
+            for t, m in zip(self._texts, self._metas):
+                f.write(json.dumps({"text": t, "metadata": m}) + "\n")
