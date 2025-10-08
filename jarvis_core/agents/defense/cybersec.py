@@ -8,6 +8,8 @@ from ...core.defense_extensions.suricata_ingest import parse_eve_line
 from ...core.defense_extensions.soc_correlator import correlate_vision_and_alerts
 from ...perception.goodseye.vision_for_security import security_detect
 from ..base import BaseAgent
+from ...defense.risk import score_events
+from ...defense.elk_exporter import export_alerts
 
 SEC_DIR = Path("/workspace/data/logs/security")
 SEC_DIR.mkdir(parents=True, exist_ok=True)
@@ -52,9 +54,15 @@ class CybersecDefenseAgent(BaseAgent):
                     continue
             vision = security_detect(context.get("image", "frame.jpg"))
             corr = correlate_vision_and_alerts(vision, alerts)
+            # Compute a naive risk score
+            risk = score_events([{ "severity": e.get("alert", {}).get("severity", "low") } for e in alerts])
+            # Optionally export to ELK if configured
+            elk_url = context.get("elk_url")
+            if elk_url:
+                export_alerts(elk_url, context.get("elk_index", "alerts"), alerts)
             return {
                 "status": "ok",
-                "result": f"correlated={len(corr)}",
+                "result": f"correlated={len(corr)} risk={risk:.2f}",
                 "artifacts": [{"type": "correlations", "items": corr}],
             }
 
