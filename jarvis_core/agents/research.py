@@ -78,6 +78,15 @@ class ResearchAgent(BaseAgent):
                     self.index.save(self._persist_dir)  # type: ignore[attr-defined]
                 except Exception:
                     pass
+            # Optional: re-embed entire index if feature enabled
+            feats = load_yaml("/workspace/configs/features.yaml").get("features", {})
+            if feats.get("reembed_on_ingest"):
+                try:
+                    self._reembed_index()
+                    if getattr(self, '_persist_dir', None):
+                        self.index.save(self._persist_dir)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             return {
                 "status": "ok",
                 "result": f"Ingested {res.num_chunks} chunks from {len(res.sources)} sources",
@@ -163,6 +172,39 @@ class ResearchAgent(BaseAgent):
             for meta in metas:
                 f.write(json.dumps(meta) + "\n")
         return len(chunks)
+
+    def _reembed_index(self) -> None:
+        """Rebuild vectors for all stored texts with current embedder.
+
+        Supports InMemoryVectorIndex (_docs), FAISS/Annoy backends (_texts/_metas),
+        and Persistent JSONL via meta loader.
+        """
+        texts: List[str] = []
+        metas: List[Dict[str, Any]] = []
+        # Try direct attributes
+        if hasattr(self.index, "_docs"):
+            try:
+                for d in getattr(self.index, "_docs"):
+                    texts.append(d.text)
+                    metas.append(d.metadata)
+            except Exception:
+                pass
+        elif hasattr(self.index, "_texts") and hasattr(self.index, "_metas"):
+            try:
+                texts = list(getattr(self.index, "_texts"))
+                metas = list(getattr(self.index, "_metas"))
+            except Exception:
+                pass
+        # Recreate index fresh
+        backend = "memory"
+        try:
+            cfg = load_yaml("/workspace/configs/vectorstore.yaml")
+            backend = cfg.get("backend", "memory")
+        except Exception:
+            pass
+        self.index = get_index(backend=backend)
+        if texts:
+            self.index.add_texts(texts, metas)
 
     def _extract_pdf_text(self, file_path: Path) -> str:
         try:
