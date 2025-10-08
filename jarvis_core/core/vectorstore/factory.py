@@ -12,10 +12,14 @@ from .annoy_backend import AnnoyVectorIndex
 def get_index(backend: str = "memory", persist_dir: Optional[str] = None):
     backend = (backend or "memory").lower()
     if persist_dir:
-        # For simplicity, persistent index uses JSONL regardless of backend here
         try:
+            if backend == "faiss":
+                return FaissVectorIndex.load(persist_dir)
+            if backend == "annoy":
+                return AnnoyVectorIndex.load(persist_dir)
             return PersistentVectorIndex.load(persist_dir)
         except Exception:
+            # fallback to simple persistent
             return PersistentVectorIndex()
     if backend == "faiss":
         try:
