@@ -4,6 +4,7 @@ features:
   faiss: true
   annoy: true
   cross_encoder: true
+  reembed_on_ingest: false
   mqtt: true
   ros2: true
   api_auth_token: "changeme-token"
