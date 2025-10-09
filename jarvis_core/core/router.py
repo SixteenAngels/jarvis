@@ -40,7 +40,11 @@ class Router:
             ComputerEngineerAgent(),
         ]
         self._corrections_path = "/workspace/data/router_corrections.json"
+        self._weights_path = "/workspace/data/router_weights.json"
         self._weights: Dict[str, float] = self._load_weights()
+        # Apply a small decay on startup to avoid ever-growing bias
+        self._decay_weights(0.99)
+        self._save_weights()
 
     def record_correction(self, task: str, corrected_agent: str) -> None:
         import json, os
@@ -57,6 +61,13 @@ class Router:
                 json.dump(data, f)
         except Exception:
             pass
+        # Update learned weights and persist
+        try:
+            name = corrected_agent
+            self._weights[name] = self._weights.get(name, 0.0) + 0.1
+            self._save_weights()
+        except Exception:
+            pass
 
     def _load_weights(self) -> Dict[str, float]:
         """Load simple per-agent weights from corrections history.
@@ -64,7 +75,15 @@ class Router:
         Agents that were used as corrections receive a small positive weight,
         biasing selection when multiple agents can_handle().
         """
-        import json
+        import json, os
+        # Prefer direct weights file if available
+        try:
+            if os.path.exists(self._weights_path):
+                with open(self._weights_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        # Fallback: compute from corrections history
         try:
             with open(self._corrections_path, "r", encoding="utf-8") as f:
                 rows = json.load(f)
@@ -76,6 +95,23 @@ class Router:
             if agent:
                 weights[agent] = weights.get(agent, 0.0) + 0.1
         return weights
+
+    def _save_weights(self) -> None:
+        import json, os
+        try:
+            os.makedirs("/workspace/data", exist_ok=True)
+            with open(self._weights_path, "w", encoding="utf-8") as f:
+                json.dump(self._weights, f)
+        except Exception:
+            pass
+
+    def _decay_weights(self, factor: float = 0.99) -> None:
+        if not self._weights:
+            return
+        for k in list(self._weights.keys()):
+            self._weights[k] *= factor
+            if abs(self._weights[k]) < 1e-6:
+                del self._weights[k]
 
     def register(self, agent: BaseAgent) -> None:
         self.agents.append(agent)
