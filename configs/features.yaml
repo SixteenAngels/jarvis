@@ -7,5 +7,7 @@ features:
   reembed_on_ingest: false
   mqtt: true
   ros2: true
+  tts_elevenlabs: false
+  tts_azure: false
   api_auth_token: "changeme-token"
   rate_limit_per_min: 60
