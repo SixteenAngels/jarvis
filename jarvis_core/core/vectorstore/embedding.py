@@ -17,7 +17,18 @@ class EmbeddingAdapter:
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
             try:
-                self._st_model = SentenceTransformer(model_name)
+                # Auto-select device if torch is available
+                device = None
+                try:
+                    import torch  # type: ignore
+
+                    device = "cuda" if torch.cuda.is_available() else "cpu"
+                except Exception:
+                    device = None
+                if device:
+                    self._st_model = SentenceTransformer(model_name, device=device)
+                else:
+                    self._st_model = SentenceTransformer(model_name)
                 self.backend_name = "sentence_transformers"
             except Exception:
                 self._st_model = None
