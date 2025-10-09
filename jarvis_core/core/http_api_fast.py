@@ -6,13 +6,15 @@ from pydantic import BaseModel
 from typing import Dict, Any, Deque
 from collections import deque
 import time
+import os
+import asyncio
 
 from .kernel import Kernel
 from ..utils.config import load_yaml
 from ..utils.logging import get_logger
 
 _features = load_yaml("/workspace/configs/features.yaml").get("features", {})
-_api_token = _features.get("api_auth_token")
+_api_token = os.getenv("API_TOKEN") or _features.get("api_auth_token")
 _rate_limit = int(_features.get("rate_limit_per_min", 0))
 
 app = FastAPI(title="Jarvis Core API")
@@ -51,6 +53,9 @@ class RateLimiter:
         self.window.append(now)
         return True
 
+    def reset(self) -> None:
+        self.window.clear()
+
 
 _limiter = RateLimiter(_rate_limit)
 
@@ -62,6 +67,18 @@ async def _startup_preflight() -> None:
     _logger.info(f"Features enabled: {feats}")
 
 
+@app.on_event("startup")
+async def _limiter_reset_task() -> None:
+    # Periodically reset the limiter window once per minute
+    async def _run():
+        while True:
+            await asyncio.sleep(60)
+            _limiter.reset()
+            _logger.info("rate_limiter_reset")
+
+    asyncio.create_task(_run())
+
+
 @app.post("/handle")
 async def handle(req: HandleRequest, authorization: str | None = Header(default=None)) -> Dict[str, Any]:
     # Simple token auth
@@ -70,4 +87,9 @@ async def handle(req: HandleRequest, authorization: str | None = Header(default=
     # Simple in-memory rate limit (reset not implemented; for demo only)
     if not _limiter.allow():
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    # Audit log
+    try:
+        _logger.info(f"request: {req.command}")
+    except Exception:
+        pass
     return _kernel.handle(req.command, req.context or {})
