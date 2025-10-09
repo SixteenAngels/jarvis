@@ -267,12 +267,20 @@ class ResearchAgent(BaseAgent):
             prev = by_source.get(src)
             if prev is None or score > prev:
                 by_source[src] = score
-        items = sorted([
-            {
-                "source": src,
-                "score": sc,
-                "snippet": next((doc.text[:120] for (_, s, doc) in hits if doc.metadata.get("source", "unknown") == src and s == sc), ""),
-            }
-            for src, sc in by_source.items()
-        ], key=lambda x: x["score"], reverse=True)
+        items = []
+        for src, sc in by_source.items():
+            # Find one matching doc to extract provenance
+            prov = next(((doc, s) for (_, s, doc) in hits if doc.metadata.get("source", "unknown") == src and abs(s - sc) < 1e-6), None)
+            snippet = ""
+            meta: Dict[str, Any] = {"source": src, "score": sc}
+            if prov:
+                d, _ = prov
+                snippet = d.text[:120]
+                # Merge provenance anchors if present
+                for key in ("doc_id", "page", "chunk_index", "start", "end"):
+                    if key in d.metadata:
+                        meta[key] = d.metadata[key]
+            meta["snippet"] = snippet
+            items.append(meta)
+        items.sort(key=lambda x: x["score"], reverse=True)
         return {"type": "citations", "items": items}
