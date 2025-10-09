@@ -12,6 +12,7 @@ import asyncio
 from .kernel import Kernel
 from ..utils.config import load_yaml
 from ..utils.logging import get_logger
+from ..agents.research import ResearchAgent
 
 _features = load_yaml("/workspace/configs/features.yaml").get("features", {})
 _api_token = os.getenv("API_TOKEN") or _features.get("api_auth_token")
@@ -31,6 +32,11 @@ _logger = get_logger("api")
 class HandleRequest(BaseModel):
     command: str
     context: Dict[str, Any] | None = None
+
+
+class ReembedRequest(BaseModel):
+    persist_dir: str | None = None
+    backend: str | None = None
 
 @app.get("/health")
 async def health() -> Dict[str, str]:
@@ -93,3 +99,26 @@ async def handle(req: HandleRequest, authorization: str | None = Header(default=
     except Exception:
         pass
     return _kernel.handle(req.command, req.context or {})
+
+
+@app.post("/rag/reembed")
+async def rag_reembed(req: ReembedRequest, authorization: str | None = Header(default=None)) -> Dict[str, Any]:
+    # Auth
+    if _api_token and authorization != f"Bearer {_api_token}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    # Determine persist_dir and backend
+    cfg = load_yaml("/workspace/configs/vectorstore.yaml")
+    persist_dir = req.persist_dir or cfg.get("persist_dir", "/workspace/data/vectorstore")
+    backend = (req.backend or cfg.get("backend", "memory")).lower()
+    try:
+        agent = ResearchAgent(persist_dir=persist_dir, backend=backend)
+        # Re-embed entire index and save
+        agent._reembed_index()  # type: ignore[attr-defined]
+        if getattr(agent, "_persist_dir", None):
+            try:
+                agent.index.save(agent._persist_dir)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        return {"status": "ok", "result": f"reembedded backend={backend} dir={persist_dir}", "artifacts": []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"reembed_failed: {e}")
