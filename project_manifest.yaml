@@ -1,0 +1,33 @@
+name: jarvis-core
+version: 0.1.0
+description: Unified ASI core with RAG and multi-agent architecture
+components:
+  api:
+    port: 8000
+    auth: token
+  rag:
+    backends: [memory, persistent, faiss, annoy]
+  agents:
+    - research
+    - system
+    - comms
+    - biomedical
+    - electrical
+    - mechanical
+    - civil
+    - software
+    - cybersec
+    - surveillance
+    - emergency
+    - robotics
+    - iot
+  features:
+    - whisper
+    - yolo
+    - mqtt
+    - ros2
+    - cross_encoder
+    - reembed_on_ingest
+data_paths:
+  vectorstore: /workspace/data/vectorstore
+  logs: /workspace/data/logs
