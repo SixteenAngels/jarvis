@@ -26,14 +26,21 @@ def detect_objects(image_path: str) -> List[Dict[str, Any]]:
             from ultralytics import YOLO  # type: ignore
 
             model = YOLO("yolov8n.pt")
-            results = model.predict(image_path)
+            results = model.predict(image_path, verbose=False)
             detections: List[Dict[str, Any]] = []
             for r in results:
                 for b in r.boxes:
                     cls = int(b.cls[0])
                     conf = float(b.conf[0])
                     name = model.names.get(cls, str(cls))
-                    detections.append({"object": name, "confidence": conf})
+                    try:
+                        xyxy = b.xyxy[0].tolist()  # [x1,y1,x2,y2]
+                    except Exception:
+                        xyxy = None
+                    item: Dict[str, Any] = {"object": name, "confidence": conf}
+                    if xyxy:
+                        item["bbox"] = xyxy
+                    detections.append(item)
             return detections
         except Exception:
             pass
