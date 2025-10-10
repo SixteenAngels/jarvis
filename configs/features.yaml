@@ -10,5 +10,6 @@ features:
   ros2: true
   tts_elevenlabs: false
   tts_azure: false
+  signed_approvals: false
   api_auth_token: "changeme-token"
   rate_limit_per_min: 60
