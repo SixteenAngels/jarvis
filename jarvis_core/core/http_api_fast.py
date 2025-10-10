@@ -14,6 +14,8 @@ from ..utils.config import load_yaml
 from ..utils.logging import get_logger
 from ..agents.research import ResearchAgent
 from ..interfaces.vision import cam_stream
+from ..iot.discovery import discover_mqtt, discover_ros
+import uuid
 
 _features = load_yaml("/workspace/configs/features.yaml").get("features", {})
 _api_token = os.getenv("API_TOKEN") or _features.get("api_auth_token")
@@ -95,11 +97,20 @@ async def handle(req: HandleRequest, authorization: str | None = Header(default=
     if not _limiter.allow():
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     # Audit log
+    rid = str(uuid.uuid4())
     try:
-        _logger.info(f"request: {req.command}")
+        _logger.info(f"request_id={rid} command={req.command}")
     except Exception:
         pass
-    return _kernel.handle(req.command, req.context or {})
+    resp = _kernel.handle(req.command, req.context or {})
+    try:
+        # append audit artifact non-destructively
+        artifacts = resp.get("artifacts", [])
+        artifacts.append({"type": "audit", "request_id": rid})
+        resp["artifacts"] = artifacts
+    except Exception:
+        pass
+    return resp
 
 
 @app.post("/rag/reembed")
@@ -144,3 +155,10 @@ async def get_frame(source: str = Query(default="0")) -> Response:
     if not data:
         raise HTTPException(status_code=503, detail="camera_unavailable")
     return Response(content=data, media_type="image/jpeg")
+
+
+@app.get("/iot/discover")
+async def iot_discover(mqtt_broker: str = Query(default="localhost"), ros_host: str = Query(default="localhost"), ros_port: int = Query(default=9090)) -> Dict[str, Any]:
+    mqtt_info = discover_mqtt(mqtt_broker)
+    ros_info = discover_ros(ros_host, ros_port)
+    return {"mqtt": mqtt_info, "ros": ros_info}
