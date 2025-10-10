@@ -5,6 +5,7 @@ Quickstart
 - Install deps:
   - Python 3.11+
   - Full stack: pip install -r requirements.txt (installs AI/Vision/IoT/Robotics toolchain)
+  - Optional extras (pip install -e .[vector,vision,stt_tts,mqtt,ros,defense])
 - Optional system tools (for integrations):
   - ngspice (circuit simulation)
   - openscad (CAD generation)
@@ -13,6 +14,11 @@ Quickstart
   - suricata, zeek (defensive SOC ingestion)
   - ffmpeg (media handling), mosquitto-clients (MQTT)
   - Install helper: scripts/install_tools.sh (Debian/Ubuntu)
+
+Environment variables (common):
+- API_TOKEN: bearer token for API auth
+- ELEVENLABS_API_KEY: enable ElevenLabs TTS when features.tts_elevenlabs=true
+- AZURE_SPEECH_KEY / AZURE_SPEECH_REGION: enable Azure TTS when features.tts_azure=true
 - Run tests:
   - PYTHONPATH=. pytest -q
 - CLI:
