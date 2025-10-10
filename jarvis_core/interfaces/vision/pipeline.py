@@ -17,6 +17,7 @@ except Exception:  # pragma: no cover
 
 from ...utils.config import load_yaml
 from .object_detect import detect_objects
+from ...perception.goodseye.vision_for_security import security_detect
 from .face_recog import recognize_faces
 
 
@@ -44,8 +45,16 @@ def iter_frames(source: str | int, target_fps: int = 5) -> Generator[bytes, None
             try:
                 with open(tmp_path, 'wb') as f:
                     f.write(jpg_buf.tobytes())
-                # Detection and face recog
-                dets = detect_objects(tmp_path) if feats.get('yolo') else []
+                # Detection and face recog (Goodseye preferred when enabled)
+                dets = []
+                if feats.get('goodseye'):
+                    try:
+                        event = security_detect(tmp_path)
+                        dets = event.get('detections', [])
+                    except Exception:
+                        dets = []
+                if not dets and feats.get('yolo'):
+                    dets = detect_objects(tmp_path)
                 faces = recognize_faces(tmp_path) if feats.get('face_recognition') else []
                 # Draw overlays
                 try:

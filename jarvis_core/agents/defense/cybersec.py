@@ -6,6 +6,8 @@ from typing import Dict, Any, List
 
 from ...core.defense_extensions.suricata_ingest import parse_eve_line
 from ...core.defense_extensions.soc_correlator import correlate_vision_and_alerts
+from ...core.defense_extensions.zeek_ingest import parse_conn_log_line
+from ...utils.config import load_yaml
 from ...perception.goodseye.vision_for_security import security_detect
 from ..base import BaseAgent
 from ...defense.risk import score_events
@@ -41,18 +43,39 @@ class CybersecDefenseAgent(BaseAgent):
                 f.write(json.dumps(rec) + "\n")
             return {"status": "ok", "result": "suricata alert ingested", "artifacts": [{"type": "log", "path": str(out)}]}
 
-        if lower.startswith("correlate vision "):
-            # correlate vision event with alerts from a file path
-            path_str = task.split(" ", 2)[2]
-            alerts_path = Path(path_str)
-            if not alerts_path.exists():
-                return {"status": "error", "result": "alerts file not found", "artifacts": []}
+        if lower.startswith("correlate vision"):
+            # correlate vision event with configured Suricata/Zeek logs
+            cfg = load_yaml("/workspace/configs/defense_integrations.yaml")
+            suri_path = Path(cfg.get("suricata", {}).get("eve_path", "/var/log/suricata/eve.json"))
+            zeek_conn = Path(cfg.get("zeek", {}).get("conn_log_path", "/var/log/zeek/conn.log"))
             alerts: List[Dict[str, Any]] = []
-            for line in alerts_path.read_text().splitlines():
+            # Suricata EVE JSON (newline-delimited or continuous JSON array)
+            if suri_path.exists():
                 try:
-                    alerts.append(json.loads(line))
+                    for ln in suri_path.read_text(errors="ignore").splitlines():
+                        try:
+                            rec = parse_eve_line(ln)
+                            if "error" not in rec:
+                                alerts.append(rec)
+                        except Exception:
+                            continue
                 except Exception:
-                    continue
+                    pass
+            # Zeek conn.log (TSV/space)
+            if zeek_conn.exists():
+                try:
+                    for ln in zeek_conn.read_text(errors="ignore").splitlines():
+                        z = parse_conn_log_line(ln)
+                        if "error" not in z:
+                            # map into alert-like record for correlation timelining
+                            alerts.append({
+                                "timestamp": z.get("ts"),
+                                "event_type": "zeek_conn",
+                                "raw": z,
+                                "alert": {"severity": 1}
+                            })
+                except Exception:
+                    pass
             vision = security_detect(context.get("image", "frame.jpg"))
             corr = correlate_vision_and_alerts(vision, alerts)
             # Compute a naive risk score

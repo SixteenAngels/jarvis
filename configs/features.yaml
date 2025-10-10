@@ -2,6 +2,7 @@ features:
   whisper: true
   yolo: true
   face_recognition: false
+  goodseye: true
   faiss: true
   annoy: true
   cross_encoder: true
