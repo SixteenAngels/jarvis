@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, Deque
@@ -13,6 +13,7 @@ from .kernel import Kernel
 from ..utils.config import load_yaml
 from ..utils.logging import get_logger
 from ..agents.research import ResearchAgent
+from ..interfaces.vision import cam_stream
 
 _features = load_yaml("/workspace/configs/features.yaml").get("features", {})
 _api_token = os.getenv("API_TOKEN") or _features.get("api_auth_token")
@@ -122,3 +123,24 @@ async def rag_reembed(req: ReembedRequest, authorization: str | None = Header(de
         return {"status": "ok", "result": f"reembedded backend={backend} dir={persist_dir}", "artifacts": []}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"reembed_failed: {e}")
+
+
+@app.get("/vision/frame")
+async def get_frame(source: str = Query(default="0")) -> Response:
+    # No auth gate for basic frame; add if desired
+    # Try to parse numeric device index
+    try:
+        src: int | str = int(source)
+    except Exception:
+        src = source
+    cap = cam_stream.open_stream(src)
+    data = cam_stream.read_frame(cap)
+    try:
+        # release if available
+        if hasattr(cap, "release"):
+            cap.release()  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    if not data:
+        raise HTTPException(status_code=503, detail="camera_unavailable")
+    return Response(content=data, media_type="image/jpeg")
