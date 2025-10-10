@@ -63,13 +63,16 @@ User/Apps (CLI, HTTP, Voice)
 - Robotics/IoT: basic stubs; logging/bridging points.
 
 ### Interfaces
-- Speech (STT/TTS) stubs, Voice Router.
-- Vision (object/face/camera) stubs.
-- AR/VR (HUD/VR) stubs.
+- Speech (STT/TTS): Whisper (local) + gTTS fallback; ElevenLabs/Azure via env flags. Voice Router coordinates STT→TTS.
+- Vision: YOLOv8 object detection with bounding boxes; optional face recognition; OpenCV camera capture.
+- AR/VR: HUD overlay hooks (pluggable rendering backend).
 
 ### HTTP/API
 - `core/http_api_fast.py` (FastAPI) exposes `/health`, `/handle` for command execution via Kernel.
-- Token/rate-limit hooks (to be enabled via `configs/features.yaml`).
+- Maintenance: `POST /rag/reembed` rebuilds embeddings for given backend.
+- Vision: `GET /vision/frame` returns a single JPEG frame (OpenCV).
+- IoT: `GET /iot/discover` performs basic MQTT/ROS discovery.
+- Auth: Bearer token via `API_TOKEN`; CORS enabled; sliding-window rate limiting.
 
 ### Extending the system
 - Add a new agent by subclassing `agents.base.BaseAgent` and registering (or letting Router discover/register).
