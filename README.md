@@ -25,6 +25,49 @@ Environment variables (common):
   - python -m jarvis_core.cli "ingest /path/to/docs"
   - python -m jarvis_core.cli "query design notes"
 
+## Run on all platforms
+
+### Linux/Mac (native)
+- Python runtime:
+  - export API_TOKEN=changeme-token
+  - pip install -r requirements.txt
+  - python main.py --api --host 0.0.0.0 --port 8000
+  - Open http://localhost:8000/ (3-button launcher)
+- Docker runtime:
+  - docker compose up --build
+
+### Windows
+- Use WSL2 for best compatibility:
+  - Install Docker Desktop or run Python in WSL2
+  - pip install -r requirements.txt
+  - python main.py --api --host 0.0.0.0 --port 8000
+  - Or: docker compose up --build
+
+### GPU detection
+- Embeddings auto-detect CUDA (torch.cuda.is_available) and use GPU if present, else CPU.
+- YOLO model selection is CPU by default; set ULTRALYTICS settings as needed.
+
+### Environment
+- API_TOKEN: bearer token for API auth
+- OPENAI_API_KEY: enable cloud LLMs when available
+- ELEVENLABS_API_KEY / AZURE_SPEECH_KEY / AZURE_SPEECH_REGION for TTS providers
+- SIGNING_KEY or PUBLIC_KEY (PEM) for signed approvals when features.signed_approvals=true
+
+## HTTP API
+- /health: service health
+- /handle: POST {command, context}
+- /rag/reembed: POST {persist_dir, backend}
+- /vision/frame: single JPEG frame; /vision/stream: MJPEG stream
+- /iot/discover: MQTT/ROS discovery snapshot
+- / (web UI): buttons to install requirements, open Jarvis UI, and exit
+
+## Production runbook highlights
+- Logging: structured JSON to stdout + rotating file at /workspace/data/logs/jarvis.log
+- Rate limiting: sliding window with periodic reset (configure in configs/features.yaml)
+- RAG: FAISS/Annoy save/load, re-embed endpoint, backups/locks for JSONL persistence
+- Sandbox: CPU/mem quotas, per-task workspace, rollback archives
+- Security: policy guardrails, approvals; optional signed approvals (HMAC/RSA)
+
 Key components
 
 - Core: `core/kernel.py`, `core/planner.py`, `core/reflection.py`, `core/policy.py`
