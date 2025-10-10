@@ -8,6 +8,8 @@ from collections import deque
 import time
 import os
 import asyncio
+import threading
+import subprocess
 
 from .kernel import Kernel
 from ..utils.config import load_yaml
@@ -32,6 +34,8 @@ app.add_middleware(
 )
 _kernel = Kernel()
 _logger = get_logger("api")
+_install_running = False
+_install_log = "/workspace/data/logs/install.log"
 
 class HandleRequest(BaseModel):
     command: str
@@ -178,3 +182,108 @@ async def iot_discover(mqtt_broker: str = Query(default="localhost"), ros_host: 
     mqtt_info = discover_mqtt(mqtt_broker)
     ros_info = discover_ros(ros_host, ros_port)
     return {"mqtt": mqtt_info, "ros": ros_info}
+
+
+# ------------------------ Minimal UI ------------------------
+
+def _html_page(body: str) -> Response:
+    html = f"""
+<!doctype html>
+<html><head><meta charset='utf-8'><title>Jarvis Core</title>
+<style>
+body {{ font-family: Arial, sans-serif; margin: 2rem; }}
+button {{ padding: 0.6rem 1rem; margin: 0.3rem; }}
+textarea, input {{ width: 100%; margin: 0.3rem 0; }}
+.row {{ margin: 1rem 0; }}
+</style>
+</head><body>
+{body}
+</body></html>
+"""
+    return Response(content=html, media_type="text/html")
+
+
+@app.get("/")
+async def ui_index() -> Response:
+    body = """
+<h1>Jarvis Core</h1>
+<div class='row'>
+  <form action='/ui/install' method='post' style='display:inline'>
+    <button type='submit'>Install Requirements</button>
+  </form>
+  <a href='/ui/jarvis'><button>Open Jarvis UI</button></a>
+  <form action='/ui/exit' method='post' style='display:inline'>
+    <button type='submit' style='background:#e33;color:#fff'>Exit</button>
+  </form>
+</div>
+"""
+    return _html_page(body)
+
+
+def _run_install_bg() -> None:
+    global _install_running
+    _install_running = True
+    os.makedirs(os.path.dirname(_install_log), exist_ok=True)
+    try:
+        with open(_install_log, "w", encoding="utf-8") as f:
+            proc = subprocess.Popen(["python", "-m", "pip", "install", "-r", "/workspace/requirements.txt"], stdout=f, stderr=subprocess.STDOUT)
+            proc.wait()
+    finally:
+        _install_running = False
+
+
+@app.post("/ui/install")
+async def ui_install() -> Response:
+    if not _install_running:
+        threading.Thread(target=_run_install_bg, daemon=True).start()
+    body = """
+<h2>Installing requirements...</h2>
+<p>Logs will appear below (refresh to update):</p>
+<pre style='white-space:pre-wrap;'>
+"""
+    try:
+        with open(_install_log, "r", encoding="utf-8") as f:
+            body += f.read()
+    except Exception:
+        body += "(log not available yet)"
+    body += "</pre><p><a href='/'>Back</a></p>"
+    return _html_page(body)
+
+
+@app.get("/ui/jarvis")
+async def ui_jarvis() -> Response:
+    body = """
+<h2>Jarvis UI</h2>
+<div class='row'>
+<form id='cmdForm'>
+  <label>Command</label>
+  <input id='cmd' placeholder='query alpha' />
+  <button type='submit'>Run</button>
+</form>
+<pre id='out'></pre>
+</div>
+<div class='row'>
+  <h3>Camera Stream</h3>
+  <img src='/vision/stream' width='480'/>
+</div>
+<script>
+const form = document.getElementById('cmdForm');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const cmd = document.getElementById('cmd').value;
+  const resp = await fetch('/handle', {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('API_TOKEN')||'')}, body: JSON.stringify({command: cmd})});
+  const data = await resp.json();
+  document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+});
+</script>
+"""
+    return _html_page(body)
+
+
+@app.post("/ui/exit")
+async def ui_exit() -> Response:
+    def _shutdown():
+        time.sleep(0.5)
+        os._exit(0)
+    threading.Thread(target=_shutdown, daemon=True).start()
+    return _html_page("<h2>Shutting down...</h2>")
