@@ -16,6 +16,7 @@ from ..agents.research import ResearchAgent
 from ..interfaces.vision import cam_stream
 from ..iot.discovery import discover_mqtt, discover_ros
 import uuid
+from ..interfaces.vision.pipeline import iter_frames
 
 _features = load_yaml("/workspace/configs/features.yaml").get("features", {})
 _api_token = os.getenv("API_TOKEN") or _features.get("api_auth_token")
@@ -155,6 +156,21 @@ async def get_frame(source: str = Query(default="0")) -> Response:
     if not data:
         raise HTTPException(status_code=503, detail="camera_unavailable")
     return Response(content=data, media_type="image/jpeg")
+
+
+@app.get("/vision/stream")
+async def get_stream(source: str = Query(default="0")) -> Response:
+    # Simple MJPEG stream. For production, consider uvicorn.stream or websockets.
+    try:
+        src: int | str = int(source)
+    except Exception:
+        src = source
+    boundary = "frame"
+    async def _gen():  # type: ignore
+        for frame in iter_frames(src, target_fps=5):
+            yield b"--" + boundary.encode() + b"\r\n"
+            yield b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+    return Response(content=_gen(), media_type=f"multipart/x-mixed-replace; boundary={boundary}")
 
 
 @app.get("/iot/discover")
