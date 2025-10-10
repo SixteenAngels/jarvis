@@ -8,10 +8,12 @@ fall back to gTTS or a placeholder.
 
 import os
 from ...utils.config import load_yaml
+from ...utils.logging import get_logger
 
 
 def synthesize(text: str, voice: str | None = None) -> bytes:
     feats = load_yaml("/workspace/configs/features.yaml").get("features", {})
+    logger = get_logger("tts")
     # ElevenLabs
     if feats.get("tts_elevenlabs") and os.getenv("ELEVENLABS_API_KEY"):
         try:
@@ -21,7 +23,7 @@ def synthesize(text: str, voice: str | None = None) -> bytes:
             audio = client.generate(text=text, voice=voice or "Rachel", model="eleven_monolingual_v1")
             return b"".join(audio) if isinstance(audio, list) else audio
         except Exception:
-            pass
+            logger.warning("elevenlabs_tts_failed")
     # Azure TTS (placeholder; requires azure-cognitiveservices-speech setup)
     if feats.get("tts_azure") and os.getenv("AZURE_SPEECH_KEY") and os.getenv("AZURE_SPEECH_REGION"):
         try:
@@ -33,7 +35,7 @@ def synthesize(text: str, voice: str | None = None) -> bytes:
             result = synthesizer.speak_text_async(text).get()
             # SDK writes to device; without a file sink we return placeholder
         except Exception:
-            pass
+            logger.warning("azure_tts_failed")
     # gTTS fallback
     try:
         from gtts import gTTS  # type: ignore
@@ -44,4 +46,5 @@ def synthesize(text: str, voice: str | None = None) -> bytes:
         tts.write_to_fp(buf)
         return buf.getvalue()
     except Exception:
+        logger.info("gtts_fallback_failed")
         return b"audio-bytes-placeholder"
