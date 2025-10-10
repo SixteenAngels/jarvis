@@ -14,3 +14,31 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["jarvis_core"]
+
+[project.optional-dependencies]
+vector = [
+  "faiss-cpu",
+  "annoy",
+]
+vision = [
+  "opencv-python",
+  "ultralytics",
+  "face-recognition",
+  "Pillow",
+]
+stt_tts = [
+  "openai-whisper",
+  "gTTS",
+  "elevenlabs",
+  "azure-cognitiveservices-speech",
+]
+ros = [
+  "roslibpy",
+]
+mqtt = [
+  "paho-mqtt",
+]
+defense = [
+  "scapy",
+  "shodan",
+]
