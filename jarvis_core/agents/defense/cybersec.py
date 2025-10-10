@@ -10,6 +10,7 @@ from ...perception.goodseye.vision_for_security import security_detect
 from ..base import BaseAgent
 from ...defense.risk import score_events
 from ...defense.elk_exporter import export_alerts
+from ...core.defense_extensions.wazuh_ingest import parse_wazuh_line, store_wazuh
 
 SEC_DIR = Path("/workspace/data/logs/security")
 SEC_DIR.mkdir(parents=True, exist_ok=True)
@@ -65,5 +66,13 @@ class CybersecDefenseAgent(BaseAgent):
                 "result": f"correlated={len(corr)} risk={risk:.2f}",
                 "artifacts": [{"type": "correlations", "items": corr}],
             }
+
+        if lower.startswith("ingest wazuh "):
+            line = task.split(" ", 2)[2]
+            rec = parse_wazuh_line(line)
+            if "error" in rec:
+                return {"status": "error", "result": "invalid wazuh json", "artifacts": []}
+            path = store_wazuh(rec)
+            return {"status": "ok", "result": "wazuh alert ingested", "artifacts": [{"type": "log", "path": path}]}
 
         return {"status": "error", "result": "unknown cybersec command", "artifacts": []}
