@@ -59,11 +59,15 @@ def run_api(args: argparse.Namespace) -> int:
     except Exception:
         print("uvicorn is not installed. Please install full requirements.")
         return 1
+    ssl_kwargs = {}
+    if getattr(args, "ssl_certfile", None) and getattr(args, "ssl_keyfile", None):
+        ssl_kwargs = {"ssl_certfile": args.ssl_certfile, "ssl_keyfile": args.ssl_keyfile}
     uvicorn.run(
         "jarvis_core.core.http_api_fast:app",
         host=args.host,
         port=args.port,
         reload=False,
+        **ssl_kwargs,
     )
     return 0
 
@@ -74,6 +78,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--api", action="store_true", help="Run FastAPI server instead of CLI")
     parser.add_argument("--host", default="0.0.0.0", help="API host (when --api)")
     parser.add_argument("--port", type=int, default=8000, help="API port (when --api)")
+    parser.add_argument("--ssl-certfile", default=None, help="TLS cert file path (PEM)")
+    parser.add_argument("--ssl-keyfile", default=None, help="TLS key file path (PEM)")
     return parser.parse_args(argv)
 
 

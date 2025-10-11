@@ -32,6 +32,7 @@ Environment variables (common):
   - export API_TOKEN=changeme-token
   - pip install -r requirements.txt
   - python main.py --api --host 0.0.0.0 --port 8000
+  - TLS (optional): python main.py --api --host 0.0.0.0 --port 8443 --ssl-certfile cert.pem --ssl-keyfile key.pem
   - Open http://localhost:8000/ (3-button launcher)
 - Jarvis UI → provides Command runner, Camera stream, Feed Knowledge uploader, Defense summary
 - Docker runtime:

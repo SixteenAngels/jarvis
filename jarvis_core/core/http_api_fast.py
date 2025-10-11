@@ -194,6 +194,26 @@ async def rag_reembed(req: ReembedRequest, authorization: str | None = Header(de
         raise HTTPException(status_code=500, detail=f"reembed_failed: {e}")
 
 
+@app.post("/rag/delete_source")
+async def rag_delete_source(authorization: str | None = Header(default=None), source: str = Form(...)) -> Dict[str, Any]:
+    if _api_token and authorization != f"Bearer {_api_token}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    cfg = load_yaml("/workspace/configs/vectorstore.yaml")
+    persist_dir = cfg.get("persist_dir", "/workspace/data/vectorstore")
+    backend = (cfg.get("backend", "memory")).lower()
+    agent = ResearchAgent(persist_dir=persist_dir, backend=backend)
+    try:
+        res = agent.execute(f"delete source {source}", {})
+        if getattr(agent, "_persist_dir", None):
+            try:
+                agent.index.save(agent._persist_dir)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        return res
+    except Exception:
+        raise HTTPException(status_code=500, detail="delete_source_failed")
+
+
 @app.post("/rag/upload")
 async def rag_upload(authorization: str | None = Header(default=None), files: list[UploadFile] = File(...)) -> Dict[str, Any]:
     if _api_token and authorization != f"Bearer {_api_token}":
@@ -375,6 +395,44 @@ async def defense_summary() -> Dict[str, Any]:
             pass
     risk = score_events([{ "severity": sev } for sev, n in severities.items() for _ in range(n)])
     return {"counts": counts, "severities": severities, "risk": round(risk, 2)}
+
+
+@app.get("/defense/stream")
+async def defense_stream() -> Response:
+    # Server-Sent Events (SSE) stream of new Suricata/Wazuh lines (best-effort)
+    base = "/workspace/data/logs/security"
+    import glob, json, aiofiles  # type: ignore
+
+    async def _gen():  # type: ignore
+        positions: Dict[str, int] = {}
+        while True:
+            files = set(glob.glob(f"{base}/suricata_*.ndjson")) | {f"{base}/suricata_manual.ndjson"}
+            files |= set(glob.glob(f"{base}/wazuh_*.ndjson"))
+            for path in files:
+                try:
+                    # initialize position
+                    if path not in positions:
+                        positions[path] = 0
+                    # read new content
+                    async with aiofiles.open(path, "r") as f:  # type: ignore
+                        await f.seek(positions[path])
+                        async for line in f:
+                            positions[path] += len(line.encode("utf-8"))
+                            data = line.strip()
+                            if not data:
+                                continue
+                            # Validate JSON-ish; if invalid, wrap raw
+                            try:
+                                _ = json.loads(data)
+                                payload = data
+                            except Exception:
+                                payload = json.dumps({"raw": data})
+                            yield ("data: " + payload + "\n\n").encode("utf-8")
+                except Exception:
+                    continue
+            await asyncio.sleep(1)
+
+    return Response(content=_gen(), media_type="text/event-stream")
 
 
 @app.get("/metrics")

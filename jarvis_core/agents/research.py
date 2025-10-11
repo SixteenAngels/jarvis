@@ -66,6 +66,11 @@ class ResearchAgent(BaseAgent):
     # ----------------------- Public API -----------------------
     def execute(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
         lower = task.lower().strip()
+        if lower.startswith("delete source "):
+            # Expect: "delete source <path>" (removes citations from meta and attempts index refresh)
+            src = lower.split(" ", 2)[2]
+            removed = self._delete_source(src)
+            return {"status": "ok", "result": f"deleted_source_entries={removed}", "artifacts": []}
         if lower.startswith("ingest "):
             # Expect: "ingest <path>"
             path = lower.split(" ", 1)[1]
@@ -205,6 +210,37 @@ class ResearchAgent(BaseAgent):
         self.index = get_index(backend=backend)
         if texts:
             self.index.add_texts(texts, metas)
+
+    def _delete_source(self, source: str) -> int:
+        """Remove entries for a given source from meta.jsonl (append-only rebuild) and reembed.
+
+        Returns the number of meta lines removed. Index will be rebuilt from remaining texts if possible.
+        """
+        try:
+            import tempfile, os
+            removed = 0
+            if not META_PATH.exists():
+                return 0
+            tmp = Path(str(META_PATH) + ".tmp")
+            with META_PATH.open("r", encoding="utf-8") as fin, tmp.open("w", encoding="utf-8") as fout:
+                for line in fin:
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    if str(rec.get("source")) == source:
+                        removed += 1
+                        continue
+                    fout.write(json.dumps(rec) + "\n")
+            tmp.replace(META_PATH)
+            # Re-embed from persistent texts if available
+            try:
+                self._reembed_index()
+            except Exception:
+                pass
+            return removed
+        except Exception:
+            return 0
 
     def _extract_pdf_text(self, file_path: Path) -> str:
         try:
