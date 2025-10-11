@@ -26,6 +26,15 @@ _features = load_yaml("/workspace/configs/features.yaml").get("features", {})
 _api_token = os.getenv("API_TOKEN") or _features.get("api_auth_token")
 _rate_limit = int(_features.get("rate_limit_per_min", 0))
 
+# Optional Prometheus metrics (do not hard-require dependency)
+try:  # pragma: no cover - optional
+    from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST  # type: ignore
+except Exception:  # pragma: no cover
+    Counter = None  # type: ignore
+    Histogram = None  # type: ignore
+    generate_latest = None  # type: ignore
+    CONTENT_TYPE_LATEST = "text/plain; version=0.0.4"
+
 app = FastAPI(title="Jarvis Core API")
 app.add_middleware(
     CORSMiddleware,
@@ -39,6 +48,13 @@ _logger = get_logger("api")
 _install_running = False
 _install_log = "/workspace/data/logs/install.log"
 
+if Counter is not None:
+    REQ_COUNT = Counter("jarvis_requests_total", "Total API requests", ["endpoint"])  # type: ignore
+    REQ_LATENCY = Histogram("jarvis_request_seconds", "API request latency", ["endpoint"])  # type: ignore
+else:
+    REQ_COUNT = None
+    REQ_LATENCY = None
+
 class HandleRequest(BaseModel):
     command: str
     context: Dict[str, Any] | None = None
@@ -47,6 +63,36 @@ class HandleRequest(BaseModel):
 class ReembedRequest(BaseModel):
     persist_dir: str | None = None
     backend: str | None = None
+
+
+@app.get("/rag/stats")
+async def rag_stats() -> Dict[str, Any]:
+    base = "/workspace/data/vectorstore"
+    import os, glob
+    stats: Dict[str, Any] = {
+        "meta_lines": 0,
+        "texts_jsonl": 0,
+        "faiss_index": False,
+        "annoy_index": False,
+    }
+    try:
+        meta = os.path.join(base, "meta.jsonl")
+        if os.path.exists(meta):
+            with open(meta, "r", encoding="utf-8") as f:
+                for _ in f:
+                    stats["meta_lines"] += 1
+    except Exception:
+        pass
+    for path in glob.glob(os.path.join(base, "texts.jsonl")):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for _ in f:
+                    stats["texts_jsonl"] += 1
+        except Exception:
+            pass
+    stats["faiss_index"] = os.path.exists(os.path.join(base, "index.faiss"))
+    stats["annoy_index"] = os.path.exists(os.path.join(base, "index.ann"))
+    return stats
 
 @app.get("/health")
 async def health() -> Dict[str, str]:
@@ -109,7 +155,12 @@ async def handle(req: HandleRequest, authorization: str | None = Header(default=
         _logger.info(f"request_id={rid} command={req.command}")
     except Exception:
         pass
-    resp = _kernel.handle(req.command, req.context or {})
+    if REQ_COUNT is not None and REQ_LATENCY is not None:
+        REQ_COUNT.labels(endpoint="handle").inc()  # type: ignore
+        with REQ_LATENCY.labels(endpoint="handle").time():  # type: ignore
+            resp = _kernel.handle(req.command, req.context or {})
+    else:
+        resp = _kernel.handle(req.command, req.context or {})
     try:
         # append audit artifact non-destructively
         artifacts = resp.get("artifacts", [])
@@ -324,6 +375,14 @@ async def defense_summary() -> Dict[str, Any]:
             pass
     risk = score_events([{ "severity": sev } for sev, n in severities.items() for _ in range(n)])
     return {"counts": counts, "severities": severities, "risk": round(risk, 2)}
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    if generate_latest is None:
+        return Response(content=b"metrics_not_enabled", media_type="text/plain")
+    data = generate_latest()  # type: ignore
+    return Response(content=data, media_type=CONTENT_TYPE_LATEST)  # type: ignore
 
 
 # ------------------------ Minimal UI ------------------------

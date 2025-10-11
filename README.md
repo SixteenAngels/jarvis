@@ -58,11 +58,13 @@ Environment variables (common):
 - /health: service health
 - /handle: POST {command, context}
 - /rag/reembed: POST {persist_dir, backend}
+- /rag/stats: vectorstore stats (meta lines, index presence)
 - /rag/upload: POST multipart files to ingest (PDF/TXT/MD)
 - /rag/ingest_url: POST form {url} to fetch and ingest
 - /vision/frame: single JPEG frame; /vision/stream: MJPEG stream
 - /iot/discover: MQTT/ROS discovery snapshot
 - /defense/summary: counts by source and severity; risk score
+- /metrics: Prometheus exposition (optional dependency)
 - / (web UI): buttons to install requirements, open Jarvis UI, and exit
 
 ## Production runbook highlights

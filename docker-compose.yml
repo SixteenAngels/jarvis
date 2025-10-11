@@ -1,9 +1,13 @@
-version: '3.9'
+version: "3.9"
 services:
   jarvis:
     build: .
+    image: jarvis-core:latest
     env_file:
       - .env
+    environment:
+      - API_TOKEN=${API_TOKEN:-changeme-token}
+      - OPENAI_API_KEY
     ports:
       - "8000:8000"
     healthcheck:
@@ -12,7 +16,8 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - ./:/app
-      - jarvis_data:/workspace/data
+      - ./data:/app/data
+      - ./configs:/app/configs
+    restart: unless-stopped
 volumes:
   jarvis_data:
