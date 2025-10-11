@@ -531,6 +531,11 @@ async def ui_jarvis() -> Response:
   <pre id='defenseOut'></pre>
 </div>
 <div class='row'>
+  <h3>RAG Stats</h3>
+  <button id='refreshRag'>Refresh</button>
+  <pre id='ragOut'></pre>
+</div>
+<div class='row'>
   <h3>Feed Knowledge</h3>
   <form id='uploadForm' enctype='multipart/form-data'>
     <label>Upload files (PDF, TXT, MD)</label>
@@ -589,6 +594,14 @@ refreshDefense.addEventListener('click', async () => {
   const resp = await fetch('/defense/summary');
   const data = await resp.json();
   document.getElementById('defenseOut').textContent = JSON.stringify(data, null, 2);
+});
+
+// RAG stats
+const refreshRag = document.getElementById('refreshRag');
+refreshRag.addEventListener('click', async () => {
+  const resp = await fetch('/rag/stats');
+  const data = await resp.json();
+  document.getElementById('ragOut').textContent = JSON.stringify(data, null, 2);
 });
 </script>
 """

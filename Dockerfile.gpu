@@ -1,0 +1,21 @@
+# GPU-enabled image (CUDA) for Jarvis Core
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv python3-pip build-essential ffmpeg curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements ./requirements
+COPY requirements.txt ./
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install -r requirements.txt && \
+    python3 -m pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+COPY . .
+EXPOSE 8000
+CMD ["python3", "main.py", "--api", "--host", "0.0.0.0", "--port", "8000"]
