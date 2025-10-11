@@ -17,8 +17,10 @@ from ..utils.logging import get_logger
 from ..agents.research import ResearchAgent
 from ..interfaces.vision import cam_stream
 from ..iot.discovery import discover_mqtt, discover_ros
+from ..defense.risk import score_events
 import uuid
 from ..interfaces.vision.pipeline import iter_frames
+from ..defense.risk import score_events
 
 _features = load_yaml("/workspace/configs/features.yaml").get("features", {})
 _api_token = os.getenv("API_TOKEN") or _features.get("api_auth_token")
@@ -145,6 +147,9 @@ async def rag_reembed(req: ReembedRequest, authorization: str | None = Header(de
 async def rag_upload(authorization: str | None = Header(default=None), files: list[UploadFile] = File(...)) -> Dict[str, Any]:
     if _api_token and authorization != f"Bearer {_api_token}":
         raise HTTPException(status_code=401, detail="Unauthorized")
+    # Basic validation: max 50MB total, allowed extensions
+    allowed_ext = {".pdf", ".txt", ".md"}
+    total_bytes = 0
     cfg = load_yaml("/workspace/configs/vectorstore.yaml")
     persist_dir = cfg.get("persist_dir", "/workspace/data/vectorstore")
     backend = (cfg.get("backend", "memory")).lower()
@@ -158,9 +163,19 @@ async def rag_upload(authorization: str | None = Header(default=None), files: li
     os.makedirs(uploads_dir, exist_ok=True)
     for uf in files:
         try:
-            dest = os.path.join(uploads_dir, uf.filename)
+            name = uf.filename or "upload.bin"
+            ext = os.path.splitext(name)[1].lower()
+            if ext not in allowed_ext:
+                continue
+            if total_bytes > 50 * 1024 * 1024:
+                break
+            data = await uf.read()
+            total_bytes += len(data)
+            if total_bytes > 50 * 1024 * 1024:
+                break
+            dest = os.path.join(uploads_dir, name)
             with open(dest, "wb") as f:
-                f.write(await uf.read())
+                f.write(data)
             saved.append(dest)
         except Exception:
             continue
@@ -187,13 +202,20 @@ async def rag_ingest_url(authorization: str | None = Header(default=None), url: 
         raise HTTPException(status_code=401, detail="Unauthorized")
     try:
         import requests  # type: ignore
-        resp = requests.get(url, timeout=10)
+        # Allow only http/https and cap size
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise HTTPException(status_code=400, detail="invalid_url")
+        resp = requests.get(url, timeout=10, headers={"User-Agent": "JarvisCore/1.0"})
         if resp.status_code >= 400:
             raise HTTPException(status_code=400, detail="fetch_failed")
+        if len(resp.text) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="content_too_large")
         # Write to a temp file and ingest
         uploads_dir = "/workspace/data/uploads"
         os.makedirs(uploads_dir, exist_ok=True)
-        fname = os.path.join(uploads_dir, "web_ingest.txt")
+        import hashlib
+        h = hashlib.sha1(url.encode("utf-8")).hexdigest()[:10]
+        fname = os.path.join(uploads_dir, f"web_{h}.txt")
         with open(fname, "w", encoding="utf-8") as f:
             f.write(resp.text)
         cfg = load_yaml("/workspace/configs/vectorstore.yaml")
@@ -254,6 +276,54 @@ async def iot_discover(mqtt_broker: str = Query(default="localhost"), ros_host: 
     mqtt_info = discover_mqtt(mqtt_broker)
     ros_info = discover_ros(ros_host, ros_port)
     return {"mqtt": mqtt_info, "ros": ros_info}
+# ------------------------ Defense Dashboard ------------------------
+
+defense_summary__duplicate_definition_guard = True
+
+
+@app.get("/defense/summary")
+async def defense_summary() -> Dict[str, Any]:
+    base = "/workspace/data/logs/security"
+    counts: Dict[str, int] = {"suricata": 0, "zeek": 0, "wazuh": 0}
+    severities: Dict[str, int] = {"low": 0, "medium": 0, "high": 0, "critical": 0}
+    import glob, json
+    alerts: list[Dict[str, Any]] = []
+    for path in glob.glob(f"{base}/suricata_*.ndjson") + [f"{base}/suricata_manual.ndjson"]:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for ln in f:
+                    try:
+                        rec = json.loads(ln)
+                        alerts.append(rec)
+                        counts["suricata"] += 1
+                        sev_val = str(rec.get("alert", {}).get("severity", "low")).lower()
+                        # Map numeric severities (0-4) to bands
+                        band = "low"
+                        if sev_val in {"4", "critical"}: band = "critical"
+                        elif sev_val in {"3", "high"}: band = "high"
+                        elif sev_val in {"2", "medium"}: band = "medium"
+                        else: band = "low"
+                        severities[band] += 1
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+    for path in glob.glob(f"{base}/zeek_*.log"):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for _ in f:
+                    counts["zeek"] += 1
+        except Exception:
+            pass
+    for path in glob.glob(f"{base}/wazuh_*.ndjson"):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for _ in f:
+                    counts["wazuh"] += 1
+        except Exception:
+            pass
+    risk = score_events([{ "severity": sev } for sev, n in severities.items() for _ in range(n)])
+    return {"counts": counts, "severities": severities, "risk": round(risk, 2)}
 
 
 # ------------------------ Minimal UI ------------------------
@@ -339,6 +409,11 @@ async def ui_jarvis() -> Response:
   <img src='/vision/stream' width='480'/>
 </div>
 <div class='row'>
+  <h3>Defense Summary</h3>
+  <button id='refreshDefense'>Refresh</button>
+  <pre id='defenseOut'></pre>
+</div>
+<div class='row'>
   <h3>Feed Knowledge</h3>
   <form id='uploadForm' enctype='multipart/form-data'>
     <label>Upload files (PDF, TXT, MD)</label>
@@ -351,6 +426,11 @@ async def ui_jarvis() -> Response:
     <button type='submit'>Fetch & Ingest</button>
   </form>
   <pre id='ingestOut'></pre>
+</div>
+<div class='row'>
+  <h3>Defense Dashboard</h3>
+  <button id='refreshDefense'>Refresh Summary</button>
+  <pre id='defenseOut'></pre>
 </div>
 <script>
 const form = document.getElementById('cmdForm');
@@ -384,6 +464,14 @@ urlForm.addEventListener('submit', async (e) => {
   const resp = await fetch('/rag/ingest_url', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('API_TOKEN')||'') }, body: fd });
   const data = await resp.json();
   document.getElementById('ingestOut').textContent = JSON.stringify(data, null, 2);
+});
+
+// Defense summary
+const refreshDefense = document.getElementById('refreshDefense');
+refreshDefense.addEventListener('click', async () => {
+  const resp = await fetch('/defense/summary');
+  const data = await resp.json();
+  document.getElementById('defenseOut').textContent = JSON.stringify(data, null, 2);
 });
 </script>
 """

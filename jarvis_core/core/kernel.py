@@ -25,6 +25,7 @@ from .router import Router
 from .memory.short_term import ShortTermMemory
 from .memory.long_term import LongTermMemory
 from ..utils.logging import get_logger
+from ..models.selector import ModelSelector
 
 
 class Kernel:
@@ -45,6 +46,7 @@ class Kernel:
         self.router = Router()
         self.short_mem = ShortTermMemory()
         self.long_mem = LongTermMemory(persist_dir)
+        self.models = ModelSelector()
 
     def handle(self, user_input: str, context: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """Handle a single user request end-to-end.
@@ -72,6 +74,12 @@ class Kernel:
             return {"status": "blocked", "result": decision.reason, "artifacts": []}
 
         self.short_mem.add(user_input)
+        # Optionally let the model assist planning when available
+        try:
+            plan_hint = self.models.generate(f"Plan steps for: {user_input}")
+            _ = plan_hint  # currently unused; reserved for future parsing
+        except Exception:
+            pass
         steps: List[PlanStep] = self.planner.decompose(user_input)
         last_resp: Dict[str, Any] = {"status": "ok", "result": "", "artifacts": []}
         for step in steps:

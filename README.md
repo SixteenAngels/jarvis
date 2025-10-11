@@ -33,6 +33,7 @@ Environment variables (common):
   - pip install -r requirements.txt
   - python main.py --api --host 0.0.0.0 --port 8000
   - Open http://localhost:8000/ (3-button launcher)
+- Jarvis UI → provides Command runner, Camera stream, Feed Knowledge uploader, Defense summary
 - Docker runtime:
   - docker compose up --build
 
@@ -57,8 +58,11 @@ Environment variables (common):
 - /health: service health
 - /handle: POST {command, context}
 - /rag/reembed: POST {persist_dir, backend}
+- /rag/upload: POST multipart files to ingest (PDF/TXT/MD)
+- /rag/ingest_url: POST form {url} to fetch and ingest
 - /vision/frame: single JPEG frame; /vision/stream: MJPEG stream
 - /iot/discover: MQTT/ROS discovery snapshot
+- /defense/summary: counts by source and severity; risk score
 - / (web UI): buttons to install requirements, open Jarvis UI, and exit
 
 ## Production runbook highlights
