@@ -243,15 +243,39 @@ class ResearchAgent(BaseAgent):
             return 0
 
     def _extract_pdf_text(self, file_path: Path) -> str:
+        # Try text extraction; fallback to OCR via pytesseract if available
         try:
             from pypdf import PdfReader  # type: ignore
         except Exception:
+            PdfReader = None  # type: ignore
+        text_accum = ""
+        if PdfReader is not None:
+            try:
+                reader = PdfReader(str(file_path))
+                texts: List[str] = []
+                for page in reader.pages:
+                    t = page.extract_text() or ""
+                    if t:
+                        texts.append(t)
+                text_accum = "\n".join(texts)
+            except Exception:
+                text_accum = ""
+        if text_accum.strip():
+            return text_accum
+        # OCR fallback
+        try:
+            import fitz  # PyMuPDF
+            import pytesseract  # type: ignore
+            from PIL import Image  # type: ignore
+        except Exception:
             return ""
         try:
-            reader = PdfReader(str(file_path))
+            doc = fitz.open(str(file_path))
             texts: List[str] = []
-            for page in reader.pages:
-                t = page.extract_text() or ""
+            for page in doc:
+                pix = page.get_pixmap(dpi=200)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                t = pytesseract.image_to_string(img)
                 if t:
                     texts.append(t)
             return "\n".join(texts)

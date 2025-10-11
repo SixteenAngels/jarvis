@@ -306,6 +306,67 @@ async def rag_ingest_url(authorization: str | None = Header(default=None), url: 
         raise HTTPException(status_code=500, detail="ingest_url_failed")
 
 
+@app.post("/rag/crawl")
+async def rag_crawl(authorization: str | None = Header(default=None), seed: str = Form(...), depth: int = Form(default=1)) -> Dict[str, Any]:
+    if _api_token and authorization != f"Bearer {_api_token}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        from bs4 import BeautifulSoup  # type: ignore
+        import requests  # type: ignore
+        from urllib.parse import urljoin, urlparse
+    except Exception:
+        raise HTTPException(status_code=500, detail="crawler_deps_missing")
+    seen: set[str] = set()
+    to_visit: list[tuple[str,int]] = [(seed, 0)]
+    uploads_dir = "/workspace/data/uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
+    saved: list[str] = []
+    while to_visit:
+        url, d = to_visit.pop(0)
+        if url in seen or d > depth:
+            continue
+        seen.add(url)
+        try:
+            resp = requests.get(url, timeout=10, headers={"User-Agent": "JarvisCoreCrawler/1.0"})
+            if resp.status_code >= 400:
+                continue
+            soup = BeautifulSoup(resp.text, "html.parser")
+            # Save page
+            import hashlib
+            h = hashlib.sha1(url.encode("utf-8")).hexdigest()[:10]
+            path = os.path.join(uploads_dir, f"crawl_{h}.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(soup.get_text(" "))
+            saved.append(path)
+            # Enqueue links same host
+            base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+            for a in soup.find_all("a"):
+                href = a.get("href")
+                if not href:
+                    continue
+                nxt = urljoin(url, href)
+                if urlparse(nxt).netloc == urlparse(base).netloc:
+                    to_visit.append((nxt, d+1))
+        except Exception:
+            continue
+    # Ingest saved
+    cfg = load_yaml("/workspace/configs/vectorstore.yaml")
+    persist_dir = cfg.get("persist_dir", "/workspace/data/vectorstore")
+    backend = (cfg.get("backend", "memory")).lower()
+    agent = ResearchAgent(persist_dir=persist_dir, backend=backend)
+    for p in saved:
+        try:
+            agent.execute(f"ingest {p}", {})
+        except Exception:
+            continue
+    try:
+        if getattr(agent, "_persist_dir", None):
+            agent.index.save(agent._persist_dir)  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    return {"status": "ok", "result": f"crawled_saved={len(saved)}", "artifacts": [{"type": "crawl", "items": saved}]}
+
+
 @app.get("/vision/frame")
 async def get_frame(source: str = Query(default="0")) -> Response:
     # No auth gate for basic frame; add if desired
