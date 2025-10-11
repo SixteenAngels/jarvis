@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response, Query
+from fastapi import FastAPI, Header, HTTPException, Request, Response, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, Deque
@@ -141,6 +141,78 @@ async def rag_reembed(req: ReembedRequest, authorization: str | None = Header(de
         raise HTTPException(status_code=500, detail=f"reembed_failed: {e}")
 
 
+@app.post("/rag/upload")
+async def rag_upload(authorization: str | None = Header(default=None), files: list[UploadFile] = File(...)) -> Dict[str, Any]:
+    if _api_token and authorization != f"Bearer {_api_token}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    cfg = load_yaml("/workspace/configs/vectorstore.yaml")
+    persist_dir = cfg.get("persist_dir", "/workspace/data/vectorstore")
+    backend = (cfg.get("backend", "memory")).lower()
+    # Save uploads to disk and ingest
+    saved: list[str] = []
+    try:
+        os.makedirs(persist_dir, exist_ok=True)
+    except Exception:
+        pass
+    uploads_dir = "/workspace/data/uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
+    for uf in files:
+        try:
+            dest = os.path.join(uploads_dir, uf.filename)
+            with open(dest, "wb") as f:
+                f.write(await uf.read())
+            saved.append(dest)
+        except Exception:
+            continue
+    agent = ResearchAgent(persist_dir=persist_dir, backend=backend)
+    total_chunks = 0
+    for p in saved:
+        try:
+            res = agent.execute(f"ingest {p}", {})
+            # parse number from result text conservatively
+            total_chunks += int(res.get("result", "0").split(" ")[1]) if res.get("result") else 0
+        except Exception:
+            continue
+    try:
+        if getattr(agent, "_persist_dir", None):
+            agent.index.save(agent._persist_dir)  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    return {"status": "ok", "result": f"uploaded={len(saved)} ingested_chunks≈{total_chunks}", "artifacts": [{"type": "uploads", "items": saved}]}
+
+
+@app.post("/rag/ingest_url")
+async def rag_ingest_url(authorization: str | None = Header(default=None), url: str = Form(...)) -> Dict[str, Any]:
+    if _api_token and authorization != f"Bearer {_api_token}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        import requests  # type: ignore
+        resp = requests.get(url, timeout=10)
+        if resp.status_code >= 400:
+            raise HTTPException(status_code=400, detail="fetch_failed")
+        # Write to a temp file and ingest
+        uploads_dir = "/workspace/data/uploads"
+        os.makedirs(uploads_dir, exist_ok=True)
+        fname = os.path.join(uploads_dir, "web_ingest.txt")
+        with open(fname, "w", encoding="utf-8") as f:
+            f.write(resp.text)
+        cfg = load_yaml("/workspace/configs/vectorstore.yaml")
+        persist_dir = cfg.get("persist_dir", "/workspace/data/vectorstore")
+        backend = (cfg.get("backend", "memory")).lower()
+        agent = ResearchAgent(persist_dir=persist_dir, backend=backend)
+        agent.execute(f"ingest {fname}", {})
+        try:
+            if getattr(agent, "_persist_dir", None):
+                agent.index.save(agent._persist_dir)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return {"status": "ok", "result": "url_ingested", "artifacts": [{"type": "source", "url": url, "path": fname}]}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="ingest_url_failed")
+
+
 @app.get("/vision/frame")
 async def get_frame(source: str = Query(default="0")) -> Response:
     # No auth gate for basic frame; add if desired
@@ -266,6 +338,20 @@ async def ui_jarvis() -> Response:
   <h3>Camera Stream</h3>
   <img src='/vision/stream' width='480'/>
 </div>
+<div class='row'>
+  <h3>Feed Knowledge</h3>
+  <form id='uploadForm' enctype='multipart/form-data'>
+    <label>Upload files (PDF, TXT, MD)</label>
+    <input id='files' name='files' type='file' multiple />
+    <button type='submit'>Upload & Ingest</button>
+  </form>
+  <form id='urlForm' method='post'>
+    <label>Ingest from URL</label>
+    <input id='urlInput' name='url' placeholder='https://example.com/guide' />
+    <button type='submit'>Fetch & Ingest</button>
+  </form>
+  <pre id='ingestOut'></pre>
+</div>
 <script>
 const form = document.getElementById('cmdForm');
 form.addEventListener('submit', async (e) => {
@@ -274,6 +360,30 @@ form.addEventListener('submit', async (e) => {
   const resp = await fetch('/handle', {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('API_TOKEN')||'')}, body: JSON.stringify({command: cmd})});
   const data = await resp.json();
   document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+});
+
+// File upload ingest
+const uploadForm = document.getElementById('uploadForm');
+uploadForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData();
+  const files = document.getElementById('files').files;
+  for (const f of files) fd.append('files', f);
+  const resp = await fetch('/rag/upload', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('API_TOKEN')||'') }, body: fd });
+  const data = await resp.json();
+  document.getElementById('ingestOut').textContent = JSON.stringify(data, null, 2);
+});
+
+// URL ingest
+const urlForm = document.getElementById('urlForm');
+urlForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = document.getElementById('urlInput').value;
+  const fd = new FormData();
+  fd.append('url', url);
+  const resp = await fetch('/rag/ingest_url', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('API_TOKEN')||'') }, body: fd });
+  const data = await resp.json();
+  document.getElementById('ingestOut').textContent = JSON.stringify(data, null, 2);
 });
 </script>
 """
