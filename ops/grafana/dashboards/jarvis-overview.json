@@ -1,0 +1,23 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {"type": "stat", "title": "Requests/min", "datasource": "Prometheus", "targets": [{"expr": "sum(rate(jarvis_requests_total[1m]))"}], "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}},
+    {"type": "graph", "title": "Request latency", "datasource": "Prometheus", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(jarvis_request_seconds_bucket[5m])) by (le))"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}},
+    {"type": "stat", "title": "Ingested meta lines", "datasource": null, "targets": [], "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}}
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["jarvis"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "Jarvis Overview",
+  "uid": "jarvis-overview",
+  "version": 1
+}

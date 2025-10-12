@@ -1,0 +1,12 @@
+suricata:
+  eve_path: /var/log/suricata/eve.json
+zeek:
+  conn_log_path: /var/log/zeek/conn.log
+cuckoo:
+  api_url: http://cuckoo.local:8090
+  enabled: false
+honeypot:
+  provider: cowrie
+  enabled: false
+correlation:
+  window_seconds: 30
