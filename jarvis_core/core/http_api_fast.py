@@ -25,6 +25,7 @@ from ..defense.risk import score_events
 _features = load_yaml("/workspace/configs/features.yaml").get("features", {})
 _api_token = os.getenv("API_TOKEN") or _features.get("api_auth_token")
 _rate_limit = int(_features.get("rate_limit_per_min", 0))
+_jwt_secret = os.getenv("JWT_SECRET")
 
 # Optional Prometheus metrics (do not hard-require dependency)
 try:  # pragma: no cover - optional
@@ -54,6 +55,15 @@ if Counter is not None:
 else:
     REQ_COUNT = None
     REQ_LATENCY = None
+
+# Optional Pushgateway support
+_push_url = os.getenv("PUSHGATEWAY_URL")
+if _push_url and Counter is not None:
+    try:
+        from prometheus_client import CollectorRegistry, push_to_gateway  # type: ignore
+        _registry = CollectorRegistry()
+    except Exception:
+        _push_url = None
 
 class HandleRequest(BaseModel):
     command: str
@@ -94,6 +104,29 @@ async def rag_stats() -> Dict[str, Any]:
     stats["annoy_index"] = os.path.exists(os.path.join(base, "index.ann"))
     return stats
 
+
+@app.get("/rag/sources")
+async def rag_sources() -> Dict[str, Any]:
+    # List sources from meta.jsonl (distinct)
+    base = "/workspace/data/vectorstore"
+    import os, json
+    meta = os.path.join(base, "meta.jsonl")
+    sources: Dict[str, int] = {}
+    try:
+        with open(meta, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    rec = json.loads(line)
+                    src = str(rec.get("source"))
+                    sources[src] = sources.get(src, 0) + 1
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    items = [{"source": s, "chunks": n} for s, n in sources.items()]
+    items.sort(key=lambda x: x["source"]) 
+    return {"items": items}
+
 @app.get("/health")
 async def health() -> Dict[str, str]:
     return {"status": "ok"}
@@ -102,17 +135,26 @@ class RateLimiter:
     def __init__(self, per_minute: int) -> None:
         self.per_minute = max(0, per_minute)
         self.window: Deque[float] = deque()
+        self.by_user: Dict[str, Deque[float]] = {}
 
-    def allow(self) -> bool:
+    def allow(self, user: str | None = None) -> bool:
         if not self.per_minute:
             return True
         now = time.time()
         # prune entries older than 60s
-        while self.window and now - self.window[0] > 60:
-            self.window.popleft()
-        if len(self.window) >= self.per_minute:
-            return False
-        self.window.append(now)
+        if user:
+            dq = self.by_user.setdefault(user, deque())
+            while dq and now - dq[0] > 60:
+                dq.popleft()
+            if len(dq) >= self.per_minute:
+                return False
+            dq.append(now)
+        else:
+            while self.window and now - self.window[0] > 60:
+                self.window.popleft()
+            if len(self.window) >= self.per_minute:
+                return False
+            self.window.append(now)
         return True
 
     def reset(self) -> None:
@@ -120,6 +162,23 @@ class RateLimiter:
 
 
 _limiter = RateLimiter(_rate_limit)
+
+def _verify_auth(authorization: str | None) -> str:
+    # Returns user id if valid, else raises HTTPException
+    if _api_token and authorization == f"Bearer {_api_token}":
+        return "token_user"
+    # JWT optional
+    if _jwt_secret and authorization and authorization.startswith("Bearer "):
+        try:
+            import jwt  # type: ignore
+            token = authorization.split(" ", 1)[1]
+            payload = jwt.decode(token, _jwt_secret, algorithms=["HS256"])  # type: ignore
+            return str(payload.get("sub", "user"))
+        except Exception:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    if _api_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return "anon"
 
 
 @app.on_event("startup")
@@ -144,10 +203,9 @@ async def _limiter_reset_task() -> None:
 @app.post("/handle")
 async def handle(req: HandleRequest, authorization: str | None = Header(default=None)) -> Dict[str, Any]:
     # Simple token auth
-    if _api_token and authorization != f"Bearer {_api_token}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    # Simple in-memory rate limit (reset not implemented; for demo only)
-    if not _limiter.allow():
+    user = _verify_auth(authorization)
+    # Per-user rate limit
+    if not _limiter.allow(user):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     # Audit log
     rid = str(uuid.uuid4())
@@ -174,8 +232,7 @@ async def handle(req: HandleRequest, authorization: str | None = Header(default=
 @app.post("/rag/reembed")
 async def rag_reembed(req: ReembedRequest, authorization: str | None = Header(default=None)) -> Dict[str, Any]:
     # Auth
-    if _api_token and authorization != f"Bearer {_api_token}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    _verify_auth(authorization)
     # Determine persist_dir and backend
     cfg = load_yaml("/workspace/configs/vectorstore.yaml")
     persist_dir = req.persist_dir or cfg.get("persist_dir", "/workspace/data/vectorstore")
@@ -216,8 +273,7 @@ async def rag_delete_source(authorization: str | None = Header(default=None), so
 
 @app.post("/rag/upload")
 async def rag_upload(authorization: str | None = Header(default=None), files: list[UploadFile] = File(...)) -> Dict[str, Any]:
-    if _api_token and authorization != f"Bearer {_api_token}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    _verify_auth(authorization)
     # Basic validation: max 50MB total, allowed extensions
     allowed_ext = {".pdf", ".txt", ".md"}
     total_bytes = 0
@@ -269,8 +325,7 @@ async def rag_upload(authorization: str | None = Header(default=None), files: li
 
 @app.post("/rag/ingest_url")
 async def rag_ingest_url(authorization: str | None = Header(default=None), url: str = Form(...)) -> Dict[str, Any]:
-    if _api_token and authorization != f"Bearer {_api_token}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    _verify_auth(authorization)
     try:
         import requests  # type: ignore
         # Allow only http/https and cap size
@@ -308,8 +363,7 @@ async def rag_ingest_url(authorization: str | None = Header(default=None), url: 
 
 @app.post("/rag/crawl")
 async def rag_crawl(authorization: str | None = Header(default=None), seed: str = Form(...), depth: int = Form(default=1)) -> Dict[str, Any]:
-    if _api_token and authorization != f"Bearer {_api_token}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    _verify_auth(authorization)
     try:
         from bs4 import BeautifulSoup  # type: ignore
         import requests  # type: ignore
@@ -504,6 +558,19 @@ async def metrics() -> Response:
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)  # type: ignore
 
 
+@app.post("/ops/push_metrics")
+async def ops_push_metrics(authorization: str | None = Header(default=None)) -> Dict[str, Any]:
+    _verify_auth(authorization)
+    if not _push_url or Counter is None:
+        raise HTTPException(status_code=400, detail="pushgateway_not_configured")
+    try:
+        from prometheus_client import push_to_gateway  # type: ignore
+        push_to_gateway(_push_url, job="jarvis_core", registry=None)  # type: ignore
+        return {"status": "ok", "result": "pushed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"push_failed: {e}")
+
+
 # ------------------------ Minimal UI ------------------------
 
 def _html_page(body: str) -> Response:
@@ -614,6 +681,15 @@ async def ui_jarvis() -> Response:
   <pre id='crawlOut'></pre>
 </div>
 <div class='row'>
+  <h3>RAG Sources</h3>
+  <button id='loadSources'>Load</button>
+  <pre id='sourcesOut'></pre>
+  <label>Delete source</label>
+  <input id='delSource' placeholder='/workspace/data/uploads/note.txt' />
+  <button id='delSourceBtn'>Delete</button>
+  <pre id='delOut'></pre>
+</div>
+<div class='row'>
   <h3>Feed Knowledge</h3>
   <form id='uploadForm' enctype='multipart/form-data'>
     <label>Upload files (PDF, TXT, MD)</label>
@@ -713,6 +789,20 @@ crawlForm.addEventListener('submit', async (e) => {
   const resp = await fetch('/rag/crawl', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('API_TOKEN')||'') }, body: fd });
   const data = await resp.json();
   document.getElementById('crawlOut').textContent = JSON.stringify(data, null, 2);
+});
+
+// Sources panel
+document.getElementById('loadSources').addEventListener('click', async () => {
+  const resp = await fetch('/rag/sources');
+  const data = await resp.json();
+  document.getElementById('sourcesOut').textContent = JSON.stringify(data, null, 2);
+});
+document.getElementById('delSourceBtn').addEventListener('click', async () => {
+  const src = document.getElementById('delSource').value;
+  const fd = new FormData(); fd.append('source', src);
+  const resp = await fetch('/rag/delete_source', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('API_TOKEN')||'') }, body: fd });
+  const data = await resp.json();
+  document.getElementById('delOut').textContent = JSON.stringify(data, null, 2);
 });
 </script>
 <script>
