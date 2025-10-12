@@ -590,6 +590,10 @@ async def ui_jarvis() -> Response:
   <h3>Defense Summary</h3>
   <button id='refreshDefense'>Refresh</button>
   <pre id='defenseOut'></pre>
+  <h4>Live Stream</h4>
+  <button id='startStream'>Start</button>
+  <button id='stopStream'>Stop</button>
+  <pre id='streamOut' style='max-height:200px;overflow:auto;'></pre>
 </div>
 <div class='row'>
   <h3>RAG Stats</h3>
@@ -666,6 +670,23 @@ refreshDefense.addEventListener('click', async () => {
   const resp = await fetch('/defense/summary');
   const data = await resp.json();
   document.getElementById('defenseOut').textContent = JSON.stringify(data, null, 2);
+});
+
+// Live SOC stream (SSE)
+let es;
+const startBtn = document.getElementById('startStream');
+const stopBtn = document.getElementById('stopStream');
+startBtn.addEventListener('click', () => {
+  if (es) return;
+  es = new EventSource('/defense/stream');
+  es.onmessage = (evt) => {
+    const el = document.getElementById('streamOut');
+    el.textContent += evt.data + "\n";
+    el.scrollTop = el.scrollHeight;
+  };
+});
+stopBtn.addEventListener('click', () => {
+  if (es) { es.close(); es = null; }
 });
 
 // RAG stats

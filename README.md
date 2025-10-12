@@ -37,6 +37,7 @@ Environment variables (common):
 - Jarvis UI → provides Command runner, Camera stream, Feed Knowledge uploader, Defense summary
 - Docker runtime:
   - docker compose up --build
+  - Prometheus http://localhost:9090; Grafana http://localhost:3000 (admin/admin)
 
 ### Windows
 - Use WSL2 for best compatibility:
@@ -62,9 +63,11 @@ Environment variables (common):
 - /rag/stats: vectorstore stats (meta lines, index presence)
 - /rag/upload: POST multipart files to ingest (PDF/TXT/MD)
 - /rag/ingest_url: POST form {url} to fetch and ingest
+- /rag/crawl: POST form {seed, depth} same-host web crawl and ingest
 - /vision/frame: single JPEG frame; /vision/stream: MJPEG stream
 - /iot/discover: MQTT/ROS discovery snapshot
 - /defense/summary: counts by source and severity; risk score
+- /defense/stream: SSE live SOC lines (Suricata/Wazuh)
 - /metrics: Prometheus exposition (optional dependency)
 - / (web UI): buttons to install requirements, open Jarvis UI, and exit
 
