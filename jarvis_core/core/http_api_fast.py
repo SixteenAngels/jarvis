@@ -597,6 +597,17 @@ async def ui_jarvis() -> Response:
   <pre id='ragOut'></pre>
 </div>
 <div class='row'>
+  <h3>Crawl Website</h3>
+  <form id='crawlForm' method='post'>
+    <label>Seed URL</label>
+    <input id='seedInput' name='seed' placeholder='https://example.com' />
+    <label>Depth</label>
+    <input id='depthInput' name='depth' type='number' value='1' min='0' max='3' />
+    <button type='submit'>Crawl & Ingest</button>
+  </form>
+  <pre id='crawlOut'></pre>
+</div>
+<div class='row'>
   <h3>Feed Knowledge</h3>
   <form id='uploadForm' enctype='multipart/form-data'>
     <label>Upload files (PDF, TXT, MD)</label>
@@ -663,6 +674,20 @@ refreshRag.addEventListener('click', async () => {
   const resp = await fetch('/rag/stats');
   const data = await resp.json();
   document.getElementById('ragOut').textContent = JSON.stringify(data, null, 2);
+});
+
+// Crawl
+const crawlForm = document.getElementById('crawlForm');
+crawlForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const seed = document.getElementById('seedInput').value;
+  const depth = document.getElementById('depthInput').value || '1';
+  const fd = new FormData();
+  fd.append('seed', seed);
+  fd.append('depth', depth);
+  const resp = await fetch('/rag/crawl', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('API_TOKEN')||'') }, body: fd });
+  const data = await resp.json();
+  document.getElementById('crawlOut').textContent = JSON.stringify(data, null, 2);
 });
 </script>
 """
