@@ -594,11 +594,13 @@ async def ui_jarvis() -> Response:
   <button id='startStream'>Start</button>
   <button id='stopStream'>Stop</button>
   <pre id='streamOut' style='max-height:200px;overflow:auto;'></pre>
+  <canvas id='defenseChart' width='480' height='200' style='border:1px solid #ccc;'></canvas>
 </div>
 <div class='row'>
   <h3>RAG Stats</h3>
   <button id='refreshRag'>Refresh</button>
   <pre id='ragOut'></pre>
+  <canvas id='ragChart' width='480' height='200' style='border:1px solid #ccc;'></canvas>
 </div>
 <div class='row'>
   <h3>Crawl Website</h3>
@@ -670,6 +672,7 @@ refreshDefense.addEventListener('click', async () => {
   const resp = await fetch('/defense/summary');
   const data = await resp.json();
   document.getElementById('defenseOut').textContent = JSON.stringify(data, null, 2);
+  drawDefenseChart(data.severities||{});
 });
 
 // Live SOC stream (SSE)
@@ -695,6 +698,7 @@ refreshRag.addEventListener('click', async () => {
   const resp = await fetch('/rag/stats');
   const data = await resp.json();
   document.getElementById('ragOut').textContent = JSON.stringify(data, null, 2);
+  drawRagChart(data||{});
 });
 
 // Crawl
@@ -710,6 +714,25 @@ crawlForm.addEventListener('submit', async (e) => {
   const data = await resp.json();
   document.getElementById('crawlOut').textContent = JSON.stringify(data, null, 2);
 });
+</script>
+<script>
+function bar(ctx, x, y, w, h, color){
+  ctx.fillStyle = color; ctx.fillRect(x, y-h, w, h);
+}
+function drawDefenseChart(sev){
+  const c = document.getElementById('defenseChart'); if(!c) return; const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const keys=['low','medium','high','critical']; const colors={'low':'#9bd','medium':'#6ac','high':'#f90','critical':'#e33'};
+  const vals=keys.map(k=>sev[k]||0); const max=Math.max(1,...vals); const bw= c.width/(keys.length*1.5);
+  keys.forEach((k,i)=>{ const h = (vals[i]/max)*(c.height-20); bar(ctx, 20+i*bw*1.5, c.height-10, bw, h, colors[k]); ctx.fillStyle='#444'; ctx.fillText(k, 20+i*bw*1.5, c.height-2); });
+}
+function drawRagChart(st){
+  const c = document.getElementById('ragChart'); if(!c) return; const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const labels=['meta_lines','texts_jsonl']; const colors={'meta_lines':'#4a8','texts_jsonl':'#88a'}; const vals=labels.map(k=>st[k]||0);
+  const max=Math.max(1,...vals); const bw= c.width/(labels.length*1.5);
+  labels.forEach((k,i)=>{ const h=(vals[i]/max)*(c.height-20); bar(ctx, 20+i*bw*1.5, c.height-10, bw, h, colors[k]); ctx.fillStyle='#444'; ctx.fillText(k, 20+i*bw*1.5, c.height-2); });
+}
 </script>
 """
     return _html_page(body)
